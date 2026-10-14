@@ -27,9 +27,11 @@ testing, test plan documents — đó là việc của QA, ngoài phạm vi lear
 - Package manager: **pnpm** (pnpm workspace đơn giản, không cần tool monorepo riêng).
 - Git: đã `git init` ngay từ giai đoạn tracking-file, trước cả khi scaffold code. Lịch sử commit
   cũng đóng vai trò một dạng progress log bổ sung cho `PROGRESS.md`.
-- Giai đoạn 0 (hiện tại): mới chỉ tạo file tracking (`CLAUDE.md`, `PROGRESS.md`), CHƯA scaffold
-  `apps/api` / `apps/web`. Việc scaffold sẽ là hands-on task đầu tiên của Stage 1, làm cùng
-  Claude Code agent trong session học tiếp theo.
+- `apps/api` (NestJS 12, Vitest + Supertest sẵn trong devDependencies) và `apps/web`
+  (Next.js 16 App Router, React 19, Tailwind 4, ESLint) đã được scaffold và gộp vào 1 pnpm
+  workspace duy nhất ở root (`pnpm-workspace.yaml`, 1 lockfile chung, không có node_modules/
+  lockfile riêng trong từng app). Chạy test: `pnpm --filter api test`, lint web:
+  `pnpm --filter web lint`.
 
 ## Cách Claude Code agent nên hành xử trong các session tiếp theo
 
@@ -38,8 +40,12 @@ testing, test plan documents — đó là việc của QA, ngoài phạm vi lear
    lặp lại phần đã xong trừ khi user yêu cầu ôn lại.
 3. Dạy + code cùng user theo kiểu hands-on: giải thích ngắn gọn khái niệm trước, sau đó cùng
    viết code thật trong repo (không chỉ show snippet trong chat).
-4. Sau khi một milestone hoàn thành (test chạy pass, hoặc setup xong), **cập nhật
-   `PROGRESS.md`** (tick checkbox + thêm log entry có ngày tháng) trước khi kết thúc session.
+4. Sau khi một milestone hoàn thành, **cập nhật `PROGRESS.md` ngay lập tức, không đợi user
+   nhắc**: tick checkbox của milestone đó, và gộp thêm log entry (hoặc update log entry của
+   ngày hiện tại) khi có cột mốc đáng chú ý trong session. Áp dụng cho cả milestone code
+   (test chạy pass, setup xong) LẪN milestone lý thuyết (Stage 0: mỗi khi user trả lời đúng
+   câu hỏi Q&A về 1 khái niệm, tick checkbox khái niệm đó ngay, không chờ hết cả Stage 0 hay
+   chờ user yêu cầu).
 5. Trước khi chuyển sang Stage kế tiếp, xác nhận lại với user rằng Stage hiện tại đã đủ vững
    (không bắt buộc 100% hoàn hảo, nhưng checklist chính phải pass).
 6. Khi user bắt đầu session mới và nói kiểu "tiếp tục học đi" mà không nói rõ stage nào — mặc
@@ -56,7 +62,9 @@ testing, test plan documents — đó là việc của QA, ngoài phạm vi lear
 - Testing Trophy (Kent C. Dodds) — góc nhìn hiện đại hơn cho full-stack dev
 
 ### Stage 1 — Unit Testing
-- Backend (NestJS, Jest có sẵn từ Nest CLI): unit test service layer (business logic thuần),
+- Backend (NestJS, **Vitest** — lưu ý: `@nestjs/cli` bản hiện tại scaffold mặc định Vitest,
+  không phải Jest như tài liệu NestJS cũ hay nói; test script vẫn tương thích gần như 1:1 vì
+  dùng chung API `describe/it/expect`): unit test service layer (business logic thuần),
   mock dependency bằng `Test.createTestingModule` + `overrideProvider`
   - Hands-on: `TaskService` với rule "không tạo task trùng tên", "chỉ owner mới xoá được task"
 - Frontend (Next.js, Vitest + React Testing Library): test theo hành vi user thấy được, không
