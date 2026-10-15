@@ -1,19 +1,37 @@
 import type { Task } from '@/types/task';
+import { authedFetch } from './http';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-export async function createTask(input: {
-  title: string;
-  ownerId: string;
-}): Promise<Task> {
-  const response = await fetch(`${API_BASE_URL}/tasks`, {
+export async function createTask(token: string, input: { title: string }): Promise<Task> {
+  const response = await authedFetch(token, '/tasks', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
 
   if (!response.ok) {
     throw new Error(`Failed to create task (status ${response.status})`);
+  }
+
+  return response.json();
+}
+
+export async function listTasks(token: string): Promise<Task[]> {
+  const response = await authedFetch(token, '/tasks');
+
+  if (!response.ok) {
+    throw new Error(`Failed to list tasks (status ${response.status})`);
+  }
+
+  return response.json();
+}
+
+export async function setTaskDone(token: string, id: string, done: boolean): Promise<Task> {
+  const response = await authedFetch(token, `/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ done }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update task (status ${response.status})`);
   }
 
   return response.json();

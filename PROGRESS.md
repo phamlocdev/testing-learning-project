@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 3 — E2E Testing
+**Stage hiện tại:** Stage 3 — E2E Testing (hoàn thành, chờ xác nhận chuyển Stage 4)
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -35,7 +35,7 @@
 
 ## Stage 3 — E2E Testing
 - [x] Setup Playwright trong repo
-- [ ] Viết kịch bản E2E: đăng nhập → tạo task → đánh dấu done → logout (chạy FE+BE local)
+- [x] Viết kịch bản E2E: đăng nhập → tạo task → đánh dấu done → logout (chạy FE+BE local)
 
 ## Stage 4 — Automation & CI
 - [ ] Viết GitHub Actions workflow chạy unit test (api + web)
@@ -57,6 +57,108 @@
 - [ ] Load test (k6)
 
 ---
+
+### 2026-10-15 (Register page riêng + React Hook Form/Zod validation — bổ sung sau Stage 3)
+- **Theo yêu cầu user:** tách `/login` và `/register` thành route riêng (trước đó gộp hết vào
+  `/`), thêm trang đăng ký thật (trước đó bỏ qua vì kịch bản Stage 3 không cần), và chuyển
+  validate form từ tay (`useState` + check thủ công) sang **React Hook Form + Zod**.
+- Thêm `AuthContext.register()` (gọi `POST /auth/register` rồi tự động `login()`),
+  `lib/validation/auth-schemas.ts` (Zod schema `loginSchema`/`registerSchema`, có
+  `confirmPassword` + `.refine()` check khớp password, `password.min(8)`).
+- `app/login/page.tsx`, `app/register/page.tsx` (route riêng, dùng chung `AuthPageLayout`).
+  `app/page.tsx` (`/`) giờ redirect client-side sang `/login` nếu chưa có token
+  (`useEffect` + `router.replace`) — đúng kiểu SPA-like, không dùng middleware/server redirect.
+- `LoginForm`/`RegisterForm` viết lại dùng `useForm` + `zodResolver`, lỗi field hiển thị qua
+  `errors.<field>.message` (vẫn giữ `role="alert"` để test không đổi query pattern).
+- **3 bug/lesson phát hiện khi viết E2E test cho flow mới (đều đã xử lý):**
+  1. Playwright's `getByLabel` mặc định match theo **substring**, khác với RTL (match
+     exact) — `'Password'` khớp nhầm luôn `'Confirm password'`. Phải dùng
+     `{ exact: true }` khi 2 label có quan hệ substring với nhau trên cùng 1 trang.
+  2. Chạy Playwright đa luồng (`workers` mặc định > 1) khi nhiều test file share
+     **chung 1** `next dev` + `nest start --watch` (qua `webServer` trong config) gây
+     flaky do `next dev` compile-on-demand không chịu tải tốt dưới nhiều browser session
+     đồng thời. Fix: set `workers: 1` trong `playwright.config.ts` — đánh đổi chấp nhận
+     được ở quy mô học tập (vài test, không phải CI-scale).
+  3. Next.js App Router tự chèn 1 `<div role="alert">` ẩn vào mọi trang (route announcer
+     cho accessibility) — `getByRole('alert')` của Playwright khớp nhầm cả nó lẫn alert
+     lỗi thật của mình (strict mode violation báo "resolved to 2 elements"). Fix: dùng
+     `getByText(<nội dung lỗi>)` cụ thể thay vì role chung chung khi test E2E thật (RTL
+     không bị ảnh hưởng vì không render runtime thật của Next, chỉ JSX thuần).
+  4. (Nhỏ, không phải bug) nhầm matcher `toHaveTextContent` (jest-dom/RTL) sang Playwright
+     — Playwright dùng `toContainText`/`toHaveText`. Hai hệ sinh thái test có API tương tự
+     nhưng không hoán đổi được, dễ nhầm khi chuyển qua lại giữa unit test (RTL) và E2E
+     test (Playwright) trong cùng 1 buổi code.
+- Viết thêm `RegisterForm.spec.tsx` (4 test: đăng ký thành công, email trùng, password
+  không khớp, password quá ngắn), 2 test case mới cho `LoginForm.spec.tsx` (email sai định
+  dạng). Thêm `register.spec.ts` (Playwright, 3 test: điều hướng login↔register qua link,
+  đăng ký thành công, đăng ký email trùng).
+- Verify: web unit 20/20, web build sạch, Playwright 4/4 pass ổn định qua nhiều lần chạy liên
+  tiếp, api unit 17/17 (không đổi).
+
+### 2026-10-15 (Build auth + toggle-done, kịch bản E2E đầy đủ — hoàn thành Stage 3)
+- **Quyết định cùng user:** để viết được kịch bản E2E đầy đủ, build đủ auth cơ bản + toggle-done
+  thay vì đơn giản hoá kịch bản hay dùng auth giả — theo đúng quy trình feature + test đã dùng
+  xuyên suốt learning path.
+
+**Backend — toggle-done:**
+- Thêm `setDone(id, done)` vào `TaskRepository`/`PrismaTaskRepository`, `setTaskDone()` vào
+  `TaskService` (check ownership giống `deleteTask`, ném `NotFoundException`/`ForbiddenException`).
+- Thêm `PATCH /tasks/:id` vào `TasksController`. Unit test (3 case) + integration test (3 case).
+
+**Backend — auth:**
+- Thêm `model User` vào `prisma/schema.prisma` (migration `add_user`), `UserRepository`/
+  `PrismaUserRepository` theo đúng port-adapter pattern đã dùng cho `Task`.
+- Cài `bcryptjs` (pure JS, tránh native build fail như `ssh2`/`cpu-features` trên Windows đã
+  gặp) + `@nestjs/jwt`. `AuthService.register()` hash password (bcrypt, 10 salt rounds),
+  `login()` verify password + ký JWT (`sub`, `email`, hết hạn 1h). Unit test dùng
+  `JwtModule.register({ secret: 'test-secret' })` thật (không mock JWT) + mock `UserRepository`.
+- `JwtAuthGuard` tự viết thủ công (đọc header `Authorization: Bearer`, verify qua
+  `JwtService.verifyAsync`, gắn `request.user`) — **không dùng `@nestjs/passport`** để giảm
+  dependency surface, đủ cho mục đích học (không cần multi-strategy auth).
+- `AuthController` (`POST /auth/register`, `POST /auth/login`), `CurrentUser` decorator lấy
+  user từ request. Thêm `JWT_SECRET` vào `.env`/`.env.example`.
+- **Refactor `TasksController`:** áp `@UseGuards(JwtAuthGuard)` ở class, bỏ `ownerId`/
+  `requesterId` khỏi DTO body — lấy thẳng từ `@CurrentUser()` (JWT), không còn tin client gửi
+  owner tuỳ ý. Viết lại toàn bộ `tasks.e2e-spec.ts` (register+login user thật qua API trong mỗi
+  test, đính JWT vào header) + `auth.e2e-spec.ts` mới (register/login flow, 409 trùng email,
+  401 sai password).
+- Verify: unit 17/17, integration 18/18 (3 file: app/auth/tasks), lint + build sạch.
+
+**Frontend — auth + toggle-done UI:**
+- `lib/api/auth.ts` (`loginUser`), `lib/auth/decode-jwt.ts` (decode payload JWT thuần, không
+  verify — server đã verify, client chỉ cần đọc claim để hiển thị), `AuthContext` (lưu token
+  vào `localStorage`, derive `user` từ token, expose `login`/`logout`).
+- **Quyết định kiến trúc:** `TaskList`/`CreateTaskForm` nhận `token` qua **prop tường minh**
+  thay vì tự đọc `useAuth()` bên trong — giữ nguyên dễ test như thiết kế cũ (không cần bọc
+  `AuthProvider` giả trong mỗi test component), đúng tinh thần tách UI con khỏi global state.
+  Không build trang đăng ký (register) UI vì kịch bản Stage 3 không cần — user test E2E được
+  seed thẳng qua API, giống thực tế hay làm (test data setup qua API, không qua UI cho phần
+  không phải trọng tâm kịch bản).
+- `lib/api/tasks.ts` đổi sang nhận `token` + gọi qua `authedFetch` (helper gắn header
+  `Authorization`), thêm `listTasks()`/`setTaskDone()`. `TaskList` giờ fetch task thật lúc
+  mount (`useEffect`) thay vì chỉ tích luỹ từ create, và wire `onToggleDone` gọi API thật.
+- `LoginForm` + `page.tsx` hiển thị `LoginForm` hoặc `TaskList` tuỳ `user` từ `AuthContext`,
+  thêm nút "Log out". `AuthProvider` wrap toàn app trong `layout.tsx`.
+- **Bug phát hiện khi viết test (đã xử lý):** `localStorage` không tự reset giữa các test case
+  trong cùng 1 file (jsdom giữ nguyên `window` qua suốt file) — test login thành công ở case 1
+  làm case 2 đọc nhầm token cũ. Fix: `afterEach` trong `vitest.setup.ts` tự `localStorage.clear()`
+  cho mọi test suite, không riêng gì auth.
+- Cập nhật MSW handlers: thêm `POST /auth/login` (trả JWT giả tự chế qua `createFakeJwt()`,
+  base64url-encode payload, không cần ký thật vì `decodeJwtPayload` chỉ đọc không verify),
+  `GET /tasks` (trả `[]`), `PATCH /tasks/:id`.
+- Viết `LoginForm.spec.tsx` (2 test: login thành công → `AuthContext` expose đúng user; login
+  sai → hiển thị lỗi). Cập nhật `TaskList.spec.tsx` dùng `token` thay `ownerId`.
+- Verify: `pnpm --filter web test` → 15/15 pass, build Next.js sạch.
+
+**E2E — kịch bản đầy đủ:**
+- Xoá `create-task.spec.ts` (smoke test cũ), thay bằng `login-and-manage-task.spec.ts`: seed
+  user qua API trực tiếp (`fetch` tới `/auth/register`, không qua UI — đăng ký không phải
+  trọng tâm kịch bản này), rồi Playwright lái UI thật: điền form login → tạo task → click
+  checkbox đánh dấu done → click "Log out" → assert quay lại màn login.
+- Verify: `npx playwright test` → pass ổn định 2 lần liên tiếp, không flaky.
+- **Stage 3 — E2E Testing hoàn thành toàn bộ 2/2 milestone.** Toàn bộ regression suite xanh:
+  api unit 17/17, api integration 18/18, web unit 15/15, Playwright E2E pass, lint + build cả
+  2 app sạch. Chờ user xác nhận trước khi chuyển Stage 4 — Automation & CI.
 
 ### 2026-10-15 (TasksController CRUD + Supertest integration test)
 - **Quyết định đổi hướng so với milestone gốc (chỉ `POST /tasks`):** user đặt câu hỏi tại sao

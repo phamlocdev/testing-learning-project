@@ -18,3 +18,9 @@ model Task {
   ownerId String
   done    Boolean @default(false)
 }
+
+model User {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
+}

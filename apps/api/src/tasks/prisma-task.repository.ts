@@ -23,6 +23,10 @@ export class PrismaTaskRepository implements TaskRepository {
     return this.prisma.task.create({ data: task });
   }
 
+  setDone(id: string, done: boolean): Promise<Task> {
+    return this.prisma.task.update({ where: { id }, data: { done } });
+  }
+
   async delete(id: string): Promise<void> {
     await this.prisma.task.delete({ where: { id } });
   }

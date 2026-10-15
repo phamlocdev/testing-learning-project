@@ -3,5 +3,8 @@ import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from './src/mocks/server';
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  window.localStorage.clear();
+});
 afterAll(() => server.close());

@@ -50,4 +50,21 @@ export class TaskService {
 
     await this.taskRepository.delete(taskId);
   }
+
+  async setTaskDone(
+    taskId: string,
+    requesterId: string,
+    done: boolean,
+  ): Promise<Task> {
+    const task = await this.taskRepository.findById(taskId);
+    if (!task) {
+      throw new NotFoundException(`Task "${taskId}" not found`);
+    }
+
+    if (task.ownerId !== requesterId) {
+      throw new ForbiddenException('Only the owner can update this task');
+    }
+
+    return this.taskRepository.setDone(taskId, done);
+  }
 }

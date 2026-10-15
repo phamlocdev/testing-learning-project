@@ -14,10 +14,42 @@ const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 describe('Tasks (e2e)', () => {
   let container: StartedPostgreSqlContainer;
   let app: INestApplication<App>;
+  let nextUserId = 0;
+
+  async function registerAndLogin(): Promise<{ token: string }> {
+    const email = `user-${++nextUserId}-${Date.now()}@example.com`;
+    const password = 'correct-password';
+
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ email, password })
+      .expect(201);
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(200);
+
+    return { token: loginResponse.body.accessToken };
+  }
+
+  function authed(token: string) {
+    return {
+      post: (url: string) =>
+        request(app.getHttpServer()).post(url).set('Authorization', `Bearer ${token}`),
+      get: (url: string) =>
+        request(app.getHttpServer()).get(url).set('Authorization', `Bearer ${token}`),
+      patch: (url: string) =>
+        request(app.getHttpServer()).patch(url).set('Authorization', `Bearer ${token}`),
+      delete: (url: string) =>
+        request(app.getHttpServer()).delete(url).set('Authorization', `Bearer ${token}`),
+    };
+  }
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     process.env.DATABASE_URL = container.getConnectionUri();
+    process.env.JWT_SECRET = 'test-secret';
 
     execSync('npx prisma migrate deploy', {
       cwd: apiRoot,
@@ -39,68 +71,58 @@ describe('Tasks (e2e)', () => {
   }, 30_000);
 
   describe('POST /tasks', () => {
-    it('creates a task and returns it', async () => {
-      const response = await request(app.getHttpServer())
+    it('creates a task owned by the authenticated user', async () => {
+      const { token } = await registerAndLogin();
+
+      const response = await authed(token)
         .post('/tasks')
-        .send({ title: 'Write report', ownerId: 'user-A' })
+        .send({ title: 'Write report' })
         .expect(201);
 
-      expect(response.body).toMatchObject({
-        title: 'Write report',
-        ownerId: 'user-A',
-        done: false,
-      });
+      expect(response.body).toMatchObject({ title: 'Write report', done: false });
       expect(response.body.id).toEqual(expect.any(String));
+      expect(response.body.ownerId).toEqual(expect.any(String));
     });
 
     it('returns Conflict when a task with the same title already exists for this owner', async () => {
-      await request(app.getHttpServer())
-        .post('/tasks')
-        .send({ title: 'Duplicate title', ownerId: 'user-B' })
-        .expect(201);
+      const { token } = await registerAndLogin();
 
+      await authed(token).post('/tasks').send({ title: 'Duplicate title' }).expect(201);
+      await authed(token).post('/tasks').send({ title: 'Duplicate title' }).expect(409);
+    });
+
+    it('returns Unauthorized without a bearer token', async () => {
       await request(app.getHttpServer())
         .post('/tasks')
-        .send({ title: 'Duplicate title', ownerId: 'user-B' })
-        .expect(409);
+        .send({ title: 'No auth' })
+        .expect(401);
     });
   });
 
   describe('GET /tasks', () => {
-    it('lists only the tasks belonging to the given owner', async () => {
-      await request(app.getHttpServer())
-        .post('/tasks')
-        .send({ title: 'Task for user-C 1', ownerId: 'user-C' })
-        .expect(201);
-      await request(app.getHttpServer())
-        .post('/tasks')
-        .send({ title: 'Task for user-C 2', ownerId: 'user-C' })
-        .expect(201);
-      await request(app.getHttpServer())
-        .post('/tasks')
-        .send({ title: 'Task for user-D', ownerId: 'user-D' })
-        .expect(201);
+    it('lists only the tasks belonging to the authenticated user', async () => {
+      const { token: tokenC } = await registerAndLogin();
+      const { token: tokenD } = await registerAndLogin();
 
-      const response = await request(app.getHttpServer())
-        .get('/tasks')
-        .query({ ownerId: 'user-C' })
-        .expect(200);
+      await authed(tokenC).post('/tasks').send({ title: 'Task for C 1' }).expect(201);
+      await authed(tokenC).post('/tasks').send({ title: 'Task for C 2' }).expect(201);
+      await authed(tokenD).post('/tasks').send({ title: 'Task for D' }).expect(201);
+
+      const response = await authed(tokenC).get('/tasks').expect(200);
 
       expect(response.body).toHaveLength(2);
-      expect(
-        response.body.every((task: { ownerId: string }) => task.ownerId === 'user-C'),
-      ).toBe(true);
     });
   });
 
   describe('GET /tasks/:id', () => {
     it('returns the task when it exists', async () => {
-      const created = await request(app.getHttpServer())
+      const { token } = await registerAndLogin();
+      const created = await authed(token)
         .post('/tasks')
-        .send({ title: 'Task to fetch', ownerId: 'user-E' })
+        .send({ title: 'Task to fetch' })
         .expect(201);
 
-      const response = await request(app.getHttpServer())
+      const response = await authed(token)
         .get(`/tasks/${created.body.id}`)
         .expect(200);
 
@@ -108,46 +130,76 @@ describe('Tasks (e2e)', () => {
     });
 
     it('returns Not Found when the task does not exist', async () => {
-      await request(app.getHttpServer())
-        .get('/tasks/does-not-exist')
-        .expect(404);
+      const { token } = await registerAndLogin();
+
+      await authed(token).get('/tasks/does-not-exist').expect(404);
+    });
+  });
+
+  describe('PATCH /tasks/:id', () => {
+    it('marks the task done when the requester is the owner', async () => {
+      const { token } = await registerAndLogin();
+      const created = await authed(token)
+        .post('/tasks')
+        .send({ title: 'Task to mark done' })
+        .expect(201);
+
+      const response = await authed(token)
+        .patch(`/tasks/${created.body.id}`)
+        .send({ done: true })
+        .expect(200);
+
+      expect(response.body).toMatchObject({ id: created.body.id, done: true });
+    });
+
+    it('returns Forbidden when the requester is not the owner', async () => {
+      const { token: ownerToken } = await registerAndLogin();
+      const { token: otherToken } = await registerAndLogin();
+      const created = await authed(ownerToken)
+        .post('/tasks')
+        .send({ title: 'Task not owned by requester (patch)' })
+        .expect(201);
+
+      await authed(otherToken)
+        .patch(`/tasks/${created.body.id}`)
+        .send({ done: true })
+        .expect(403);
+    });
+
+    it('returns Not Found when the task does not exist', async () => {
+      const { token } = await registerAndLogin();
+
+      await authed(token).patch('/tasks/does-not-exist').send({ done: true }).expect(404);
     });
   });
 
   describe('DELETE /tasks/:id', () => {
     it('deletes the task when the requester is the owner', async () => {
-      const created = await request(app.getHttpServer())
+      const { token } = await registerAndLogin();
+      const created = await authed(token)
         .post('/tasks')
-        .send({ title: 'Task to delete', ownerId: 'user-F' })
+        .send({ title: 'Task to delete' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .delete(`/tasks/${created.body.id}`)
-        .query({ requesterId: 'user-F' })
-        .expect(204);
-
-      await request(app.getHttpServer())
-        .get(`/tasks/${created.body.id}`)
-        .expect(404);
+      await authed(token).delete(`/tasks/${created.body.id}`).expect(204);
+      await authed(token).get(`/tasks/${created.body.id}`).expect(404);
     });
 
     it('returns Forbidden when the requester is not the owner', async () => {
-      const created = await request(app.getHttpServer())
+      const { token: ownerToken } = await registerAndLogin();
+      const { token: otherToken } = await registerAndLogin();
+      const created = await authed(ownerToken)
         .post('/tasks')
-        .send({ title: 'Task not owned by requester', ownerId: 'user-G' })
+        .send({ title: 'Task not owned by requester' })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .delete(`/tasks/${created.body.id}`)
-        .query({ requesterId: 'user-H' })
-        .expect(403);
+      await authed(otherToken).delete(`/tasks/${created.body.id}`).expect(403);
     });
 
     it('returns Not Found when the task does not exist', async () => {
-      await request(app.getHttpServer())
-        .delete('/tasks/does-not-exist')
-        .query({ requesterId: 'user-A' })
-        .expect(404);
+      const { token } = await registerAndLogin();
+
+      await authed(token).delete('/tasks/does-not-exist').expect(404);
     });
   });
 });

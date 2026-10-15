@@ -8,5 +8,6 @@ export abstract class TaskRepository {
   ): Promise<Task | null>;
   abstract findAllByOwner(ownerId: string): Promise<Task[]>;
   abstract create(task: Omit<Task, 'id'>): Promise<Task>;
+  abstract setDone(id: string, done: boolean): Promise<Task>;
   abstract delete(id: string): Promise<void>;
 }

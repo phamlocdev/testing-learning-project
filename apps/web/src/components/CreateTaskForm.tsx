@@ -6,11 +6,11 @@ import { createTask } from '@/lib/api/tasks';
 import type { Task } from '@/types/task';
 
 interface CreateTaskFormProps {
-  ownerId: string;
+  token: string;
   onCreated: (task: Task) => void;
 }
 
-export function CreateTaskForm({ ownerId, onCreated }: CreateTaskFormProps) {
+export function CreateTaskForm({ token, onCreated }: CreateTaskFormProps) {
   const { title, error, setTitle, validate } = useTaskTitleForm();
 
   async function handleSubmit(event: FormEvent) {
@@ -19,7 +19,7 @@ export function CreateTaskForm({ ownerId, onCreated }: CreateTaskFormProps) {
       return;
     }
 
-    const task = await createTask({ title, ownerId });
+    const task = await createTask(token, { title });
     onCreated(task);
     setTitle('');
   }

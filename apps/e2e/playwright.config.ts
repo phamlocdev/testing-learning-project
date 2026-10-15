@@ -6,6 +6,11 @@ const repoRoot = path.resolve(__dirname, '../..');
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
+  // All tests share one `next dev` + one `nest start --watch` instance (see webServer
+  // below). `next dev` recompiles routes on demand and gets flaky under concurrent
+  // browser sessions, so keep this at 1 worker rather than fighting dev-server
+  // contention. Fine at this suite's size; revisit if the suite grows much larger.
+  workers: 1,
   retries: 0,
   use: {
     baseURL: 'http://localhost:3000',

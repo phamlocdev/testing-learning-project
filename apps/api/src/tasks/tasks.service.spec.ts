@@ -21,6 +21,7 @@ describe('TaskService', () => {
       findByTitleAndOwner: vi.fn(),
       findAllByOwner: vi.fn(),
       create: vi.fn(),
+      setDone: vi.fn(),
       delete: vi.fn(),
     };
 
@@ -162,6 +163,57 @@ describe('TaskService', () => {
 
       // Act
       const act = () => taskService.deleteTask('missing', 'user-A');
+
+      // Assert
+      await expect(act).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('setTaskDone', () => {
+    it('marks the task done when the requester is the owner', async () => {
+      // Arrange
+      const task: Task = {
+        id: 't1',
+        title: 'Write report',
+        ownerId: 'user-A',
+        done: false,
+      };
+      taskRepository.findById.mockResolvedValue(task);
+      const updated: Task = { ...task, done: true };
+      taskRepository.setDone.mockResolvedValue(updated);
+
+      // Act
+      const result = await taskService.setTaskDone('t1', 'user-A', true);
+
+      // Assert
+      expect(result).toEqual(updated);
+      expect(taskRepository.setDone).toHaveBeenCalledWith('t1', true);
+    });
+
+    it('throws Forbidden when the requester is not the owner', async () => {
+      // Arrange
+      const task: Task = {
+        id: 't1',
+        title: 'Write report',
+        ownerId: 'user-A',
+        done: false,
+      };
+      taskRepository.findById.mockResolvedValue(task);
+
+      // Act
+      const act = () => taskService.setTaskDone('t1', 'user-B', true);
+
+      // Assert
+      await expect(act).rejects.toThrow(ForbiddenException);
+      expect(taskRepository.setDone).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound when the task does not exist', async () => {
+      // Arrange
+      taskRepository.findById.mockResolvedValue(null);
+
+      // Act
+      const act = () => taskService.setTaskDone('missing', 'user-A', true);
 
       // Assert
       await expect(act).rejects.toThrow(NotFoundException);
