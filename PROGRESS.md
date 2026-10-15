@@ -58,6 +58,27 @@
 
 ---
 
+### 2026-10-15 (Fix bug CI thật: thiếu `postinstall` generate Prisma Client — phát hiện khi chạy job integration-test-api trên GitHub)
+- **Bug phát hiện qua verify thật trên GitHub Actions (user báo, kèm log lỗi):** job
+  `integration-test-api` fail ngay từ lúc import module, chưa chạy được test case nào —
+  `Error: Cannot find module '../generated/prisma/client.js'`.
+- **Nguyên nhân:** `src/generated/prisma` (nơi Prisma Client được generate ra) nằm trong
+  `apps/api/.gitignore` (đúng — đây là generated code, không nên commit), nhưng
+  `apps/api/package.json` **không có script nào tự chạy `prisma generate`** sau khi cài
+  dependencies. Trên máy local nó luôn chạy được vì thư mục này được generate thủ công 1 lần từ
+  Stage 2 và vẫn tồn tại sẵn qua các lần `pnpm install` sau — nhưng runner CI luôn checkout sạch
+  (không có thư mục này), nên `prisma generate` chưa từng chạy trước khi test import Prisma
+  Client.
+- **Bài học:** verify local bằng `pnpm --filter api test:e2e` (không xoá `src/generated` trước)
+  không đủ để mô phỏng đúng trạng thái CI (clone sạch) — phải xoá thư mục generated rồi chạy lại
+  `pnpm install` mới lộ ra lỗi này.
+- Fix: thêm `"postinstall": "prisma generate"` vào `scripts` của `apps/api/package.json` — chạy
+  tự động mỗi khi `pnpm install`, không cần nhớ chạy tay.
+- Verify: xoá `apps/api/src/generated` local → `pnpm install --frozen-lockfile` (log xác nhận
+  `postinstall$ prisma generate` tự chạy và generate thành công) → `pnpm --filter api test:e2e`
+  18/18 pass, `pnpm --filter api test` 17/17 pass, `pnpm --filter api build` sạch — không
+  regression.
+
 ### 2026-10-15 (Fix bug: refresh trang bị văng về /login dù đã đăng nhập — bổ sung sau Stage 4 milestone 1)
 - **Bug phát hiện qua testing thủ công (user báo):** sau khi login/register thành công, điều
   hướng đúng về `/` — nhưng F5 refresh thật lại bị bắn ngược về `/login` dù token vẫn còn hợp lệ
