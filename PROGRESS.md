@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 1 — Unit Testing
+**Stage hiện tại:** Stage 1 — Unit Testing (hoàn thành, chờ xác nhận chuyển Stage 2)
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -23,7 +23,7 @@
 - [x] NestJS: unit test `TaskService` bằng Vitest, mock `TaskRepository` qua `useValue` (stub)
 - [x] Next.js: setup Vitest + React Testing Library
 - [x] Next.js: unit test component `TaskItem` (trạng thái done/pending)
-- [ ] Next.js: unit test 1 custom hook validate form
+- [x] Next.js: unit test 1 custom hook validate form
 
 ## Stage 2 — Integration Testing
 - [ ] Setup Testcontainers cho PostgreSQL trong backend test suite
@@ -59,6 +59,18 @@
 ---
 
 ## Log
+
+### 2026-10-15 (custom hook validate form unit test — hoàn thành Stage 1)
+- Viết `apps/web/src/hooks/useTaskTitleForm.ts`: hook validate title của form tạo task
+  (required, không cho whitespace-only nhờ `trim()`), trả về `{ title, error, setTitle,
+  validate }`; `setTitle` tự clear error cũ ngay khi user gõ lại.
+- Viết `useTaskTitleForm.spec.ts`: 6 test case dùng `renderHook` + `act` từ
+  `@testing-library/react` — state khởi tạo, cập nhật title, validate empty/whitespace-only
+  (fail + set error), validate hợp lệ (pass + clear error), và error tự clear khi gõ lại.
+- Verify: `pnpm --filter web test` → 10/10 pass (4 TaskItem + 6 hook mới).
+- **Stage 1 — Unit Testing hoàn thành toàn bộ 6/6 milestone** (3 backend + 3 frontend). Chờ
+  user xác nhận đã vững trước khi chuyển sang Stage 2 — Integration Testing (Testcontainers
+  Postgres cho backend, MSW cho frontend).
 
 ### 2026-10-15 (TaskItem component unit test)
 - Tạo `apps/web/src/types/task.ts`: type `Task` phía frontend, độc lập với entity `Task` của
