@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import type { Task } from '@/types/task';
 import { CreateTaskForm } from './CreateTaskForm';
@@ -15,13 +17,17 @@ export function TaskList({ ownerId }: TaskListProps) {
   }
 
   return (
-    <div>
+    <div className="flex flex-col gap-5">
       <CreateTaskForm ownerId={ownerId} onCreated={handleCreated} />
-      <ul>
-        {tasks.map((task) => (
-          <TaskItem key={task.id} task={task} />
-        ))}
-      </ul>
+      {tasks.length === 0 ? (
+        <p className="py-6 text-center text-sm text-slate-400">No tasks yet — add one above.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-slate-100">
+          {tasks.map((task) => (
+            <TaskItem key={task.id} task={task} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

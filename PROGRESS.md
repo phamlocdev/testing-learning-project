@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 2 — Integration Testing (hoàn thành, chờ xác nhận chuyển Stage 3)
+**Stage hiện tại:** Stage 3 — E2E Testing
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -34,7 +34,7 @@
       NestJS endpoint
 
 ## Stage 3 — E2E Testing
-- [ ] Setup Playwright trong repo
+- [x] Setup Playwright trong repo
 - [ ] Viết kịch bản E2E: đăng nhập → tạo task → đánh dấu done → logout (chạy FE+BE local)
 
 ## Stage 4 — Automation & CI
@@ -145,6 +145,45 @@
 - Verify: `pnpm --filter web test` → 13/13 pass (4 TaskItem + 6 hook + 3 integration mới).
 - **Stage 2 hoàn thành toàn bộ 4/4 milestone** (2 backend + 2 frontend). Chờ user xác nhận
   trước khi chuyển sang Stage 3 — E2E Testing (Playwright).
+
+### 2026-10-15 (Setup Playwright — Stage 3 bắt đầu)
+- **Quyết định cấu trúc cùng user:** đặt Playwright ở package riêng `apps/e2e` (không thuộc
+  `api` hay `web`) vì nó test cả 2 app chạy cùng lúc — khớp pattern `apps/*` sẵn có, không cần
+  thêm Turborepo/Nx.
+- **Gap đã nhận diện nhưng chưa xử lý (có chủ đích):** kịch bản E2E đầy đủ trong `CLAUDE.md`
+  ("đăng nhập → tạo task → đánh dấu done → logout") cần **auth** và **toggle-done endpoint**
+  — cả 2 đều chưa tồn tại ở backend lẫn frontend. User chọn "để Stage 3 tự xử lý lúc đến nơi"
+  thay vì thêm milestone bridge ngay bây giờ. Milestone "Setup Playwright" vì vậy chỉ cần
+  verify tooling hoạt động qua 1 flow đã có sẵn đầy đủ (tạo task), không phải kịch bản đầy đủ.
+- Cài `@playwright/test@1.64.1` (kiểm tra dist-tag thật trước khi cài, theo đúng bài học từ sự
+  cố Prisma RC ở Stage 2) + `npx playwright install chromium --with-deps`. pnpm tự thêm
+  `minimumReleaseAgeExclude` vào `pnpm-workspace.yaml` cho các package Playwright (chính sách
+  supply-chain mặc định của pnpm: chặn package publish quá gần đây).
+- Viết `apps/e2e/playwright.config.ts`: `webServer` khởi động **cả 2** dev server
+  (`pnpm --filter api start:dev` + `pnpm --filter web dev`) tự động khi chạy test, `cwd` phải
+  trỏ về root repo (không phải `apps/e2e`) vì lệnh dùng `pnpm --filter`.
+- **Gắn `TaskList` thật vào `apps/web/src/app/page.tsx`** (trước đó vẫn là trang mặc định của
+  `create-next-app`, `TaskList`/`CreateTaskForm` mới chỉ tồn tại trong test Vitest+RTL, chưa có
+  route thật nào render chúng).
+- **Bug phát hiện khi render qua Next.js thật (đã xử lý):** `TaskList.tsx`/`CreateTaskForm.tsx`
+  dùng `useState`/hook nhưng thiếu `'use client'` — Vitest+RTL không phân biệt Server/Client
+  Component nên không bắt được lỗi này ở Stage 1/2, chỉ lộ ra khi gắn vào `app/page.tsx` thật
+  (Server Component mặc định của App Router). Đã thêm `'use client'` vào cả 2 file.
+  **Bài học:** unit/integration test qua RTL không thay thế được việc chạy app thật — đây
+  chính xác là giá trị của Stage 3 E2E (test cả stack thật, bắt được lỗi integration giữa các
+  tầng mà test ở mức thấp hơn không thấy).
+- **Bug thứ 2 phát hiện (đã xử lý):** `POST /tasks` từ trình duyệt thật (`localhost:3000`) gọi
+  sang API thật (`localhost:3001`) bị chặn do **CORS** — `apps/api/src/main.ts` chưa gọi
+  `app.enableCors()`. Test suite Stage 2 (Supertest) không bắt được lỗi này vì Supertest gọi
+  thẳng vào HTTP server, không đi qua cơ chế same-origin policy của trình duyệt.
+- Viết `apps/e2e/tests/create-task.spec.ts`: mở trang thật, điền + submit form, assert task
+  mới hiển thị — chạy qua **toàn bộ stack thật** (Next.js dev server + NestJS dev server +
+  Postgres dev qua `docker-compose`), không mock gì cả. Dùng `Date.now()` trong title để tránh
+  conflict 409 giữa các lần chạy test (Postgres dev persist dữ liệu qua volume, khác
+  Testcontainers ephemeral).
+- Verify: `npx playwright test` (trong `apps/e2e`) → pass 2 lần liên tiếp, không flaky.
+- Next milestone: viết kịch bản E2E đầy đủ "đăng nhập → tạo task → đánh dấu done → logout" —
+  cần build thêm auth + toggle-done trước (xem gap đã ghi ở trên).
 
 ### 2026-10-15 (Testcontainers Postgres setup — Stage 2 bắt đầu)
 - Chọn **Prisma** làm query layer cho `TaskRepository` (quyết định cùng user, có cân nhắc
