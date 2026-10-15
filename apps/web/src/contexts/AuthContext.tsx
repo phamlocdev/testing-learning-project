@@ -10,6 +10,7 @@ const TOKEN_STORAGE_KEY = 'mini-task-manager:token';
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
+  isInitialized: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -24,6 +25,7 @@ function userFromToken(token: string): AuthUser {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     try {
@@ -33,6 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // localStorage unavailable (e.g. private browsing) — stay logged out
+    } finally {
+      setIsInitialized(true);
     }
   }, []);
 
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = token ? userFromToken(token) : null;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isInitialized, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

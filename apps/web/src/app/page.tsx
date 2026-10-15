@@ -6,16 +6,16 @@ import { TaskList } from '@/components/TaskList';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Home() {
-  const { user, token, logout } = useAuth();
+  const { user, token, isInitialized, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!token) {
+    if (isInitialized && !token) {
       router.replace('/login');
     }
-  }, [token, router]);
+  }, [isInitialized, token, router]);
 
-  if (!user || !token) {
+  if (!isInitialized || !user || !token) {
     return null;
   }
 

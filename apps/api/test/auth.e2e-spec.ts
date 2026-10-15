@@ -3,13 +3,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 
-const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const apiRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 describe('Auth (e2e)', () => {
   let container: StartedPostgreSqlContainer;
@@ -46,7 +52,10 @@ describe('Auth (e2e)', () => {
         .send({ email: 'alice@example.com', password: 'correct-password' })
         .expect(201);
 
-      expect(response.body).toEqual({ id: expect.any(String), email: 'alice@example.com' });
+      expect(response.body).toEqual({
+        id: expect.any(String),
+        email: 'alice@example.com',
+      });
       expect(response.body.passwordHash).toBeUndefined();
     });
 
