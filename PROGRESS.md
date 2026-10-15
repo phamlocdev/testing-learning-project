@@ -352,6 +352,15 @@
   vấn đề gì tới workflow.)
 - Next milestone: thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub
   runner).
+- **Bug phát hiện khi verify thật trên GitHub Actions (đã xử lý):** push thử lên GitHub, cả 2
+  job fail ngay ở bước `pnpm/action-setup@v4` — `Error: No pnpm version is specified`. Nguyên
+  nhân: repo không có `package.json` ở root (chỉ có `pnpm-workspace.yaml` + app con), nên
+  action không tìm được field `packageManager` để biết version pnpm nào cần cài (field này chỉ
+  tồn tại trong `apps/web/package.json`, action chỉ đọc ở root). **Bài học:** verify CI bằng
+  cách chạy lệnh tương đương ở local (`pnpm install --frozen-lockfile` rồi `pnpm test`) không
+  đủ — không bắt được lỗi về cách GitHub Action tự detect version tool, phải push thật lên
+  Actions tab mới thấy. Fix: khai báo tường minh `with: version: 12.11.2` ở cả 2 bước
+  `pnpm/action-setup@v4` thay vì dựa vào auto-detect.
 
 ### 2026-10-15 (custom hook validate form unit test — hoàn thành Stage 1)
 - Viết `apps/web/src/hooks/useTaskTitleForm.ts`: hook validate title của form tạo task
