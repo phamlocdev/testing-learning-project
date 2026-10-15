@@ -25,7 +25,7 @@ jobs:
 
       - run: pnpm --filter api test
 
-  unit-test-web:
+  test-web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,3 +42,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm --filter web test
+
+  integration-test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.11.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter api test:e2e

@@ -39,7 +39,7 @@
 
 ## Stage 4 — Automation & CI
 - [x] Viết GitHub Actions workflow chạy unit test (api + web)
-- [ ] Thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub runner)
+- [x] Thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub runner)
 - [ ] Thêm job E2E Playwright trên CI
 - [ ] Setup coverage report + badge trong README
 
@@ -57,6 +57,25 @@
 - [ ] Load test (k6)
 
 ---
+
+### 2026-10-15 (Fix bug: refresh trang bị văng về /login dù đã đăng nhập — bổ sung sau Stage 4 milestone 1)
+- **Bug phát hiện qua testing thủ công (user báo):** sau khi login/register thành công, điều
+  hướng đúng về `/` — nhưng F5 refresh thật lại bị bắn ngược về `/login` dù token vẫn còn hợp lệ
+  trong `localStorage`.
+- **Nguyên nhân:** race condition giữa 2 `useEffect`. `AuthProvider` (cha) đọc token từ
+  `localStorage` trong `useEffect` riêng (vì `localStorage` chỉ truy cập được client-side, không
+  đọc được lúc khởi tạo state trên server render). `Home` (`app/page.tsx`, con) cũng có
+  `useEffect` check `if (!token) router.replace('/login')`. React chạy effect của **con trước
+  cha** trong cùng 1 commit → lúc `Home` check, `token` vẫn là `null` (giá trị khởi tạo), chưa
+  kịp hydrate từ `localStorage` → redirect nhầm trước khi `AuthProvider` kịp set token thật.
+- **Fix:** thêm cờ `isInitialized` vào `AuthContext` (set `true` trong `finally` của effect đọc
+  `localStorage`, dù tìm thấy token hay không). `Home` chỉ redirect khi `isInitialized === true
+  && !token`, và render `null` (chờ) khi chưa `isInitialized` — tránh flash nội dung sai trước
+  khi auth state ổn định.
+- **Lưu ý:** unit test (RTL) không bắt được bug này vì không mô phỏng đúng thứ tự effect
+  cha/con khi có flow routing + hydrate từ `localStorage` thật qua F5 — phải verify bằng tay
+  trên browser thật mới thấy. Verify: `pnpm --filter web test` vẫn 20/20 pass (không regression),
+  test thủ công trên browser xác nhận refresh giữ nguyên trạng thái đăng nhập.
 
 ### 2026-10-15 (Register page riêng + React Hook Form/Zod validation — bổ sung sau Stage 3)
 - **Theo yêu cầu user:** tách `/login` và `/register` thành route riêng (trước đó gộp hết vào
@@ -332,6 +351,34 @@
   query DB thật trong container để verify).
 
 ## Log
+
+### 2026-10-15 (Đổi tên job unit-test-web → test-web trong CI)
+- **User hỏi:** vì sao không có job `integration-test-web` tương ứng `integration-test-api`?
+- **Giải thích:** frontend không tách lệnh test riêng theo tầng như backend (`test` vs
+  `test:e2e`) vì integration test frontend (Stage 2, vd `TaskList.spec.tsx`/
+  `LoginForm.spec.tsx` — mock network qua MSW) không cần DB/Docker thật, cùng chạy qua Vitest,
+  cùng đuôi file `*.spec.tsx` như unit test thuần (`TaskItem.spec.tsx`). Nên job
+  `unit-test-web` cũ (chạy `pnpm --filter web test`) thực ra đã bao phủ cả unit lẫn integration
+  test frontend — chỉ là tên gọi gây hiểu nhầm.
+- Đổi tên job trong `.github/workflows/ci.yml` từ `unit-test-web` → `test-web` cho đúng bản chất
+  (không tách job, vì không có lý do kỹ thuật để tách — khác hẳn backend phải tách vì
+  integration test cần Testcontainers nặng/chậm hơn).
+
+### 2026-10-15 (Thêm job integration test vào CI)
+- Thêm job `integration-test-api` vào `.github/workflows/ci.yml`: giống hệt cấu trúc job
+  `unit-test-api` (checkout → pnpm/action-setup → setup-node → install), chỉ khác lệnh cuối
+  đổi sang `pnpm --filter api test:e2e`.
+- **Lưu ý khái niệm quan trọng (khác với giả định ban đầu trong `CLAUDE.md`):** GitHub-hosted
+  `ubuntu-latest` runner **đã có sẵn Docker daemon chạy natively trên host** (không phải
+  nested-virtualization "Docker-in-Docker" thật sự cần cấu hình thêm) — Testcontainers chỉ cần
+  nói chuyện thẳng với Docker socket có sẵn của host, không cần service container hay step setup
+  Docker riêng. Vì vậy milestone này không cần thêm config gì ngoài việc đổi lệnh test, khác với
+  suy nghĩ ban đầu rằng cần xử lý Docker-in-Docker phức tạp.
+- Không cần secret/env nào thêm: test suite tự set `DATABASE_URL` trỏ vào Postgres container ephemeral
+  do Testcontainers dựng runtime, và tự set `JWT_SECRET` riêng cho test — không đọc `.env`.
+- Verify local (mô phỏng đúng lệnh CI sẽ chạy): `pnpm --filter api test:e2e` → 18/18 pass
+  (3 file: app/auth/tasks e2e-spec), không container nào sót lại sau khi chạy xong.
+- Next milestone: thêm job E2E Playwright trên CI.
 
 ### 2026-10-15 (GitHub Actions workflow cho unit test — Stage 4 bắt đầu)
 - User xác nhận Stage 3 đã vững, chuyển sang Stage 4 — Automation & CI.
