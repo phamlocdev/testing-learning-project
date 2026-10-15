@@ -6,6 +6,7 @@ export abstract class TaskRepository {
     title: string,
     ownerId: string,
   ): Promise<Task | null>;
+  abstract findAllByOwner(ownerId: string): Promise<Task[]>;
   abstract create(task: Omit<Task, 'id'>): Promise<Task>;
   abstract delete(id: string): Promise<void>;
 }

@@ -25,6 +25,19 @@ export class TaskService {
     return this.taskRepository.create({ title, ownerId, done: false });
   }
 
+  async getTask(taskId: string): Promise<Task> {
+    const task = await this.taskRepository.findById(taskId);
+    if (!task) {
+      throw new NotFoundException(`Task "${taskId}" not found`);
+    }
+
+    return task;
+  }
+
+  listTasks(ownerId: string): Promise<Task[]> {
+    return this.taskRepository.findAllByOwner(ownerId);
+  }
+
   async deleteTask(taskId: string, requesterId: string): Promise<void> {
     const task = await this.taskRepository.findById(taskId);
     if (!task) {

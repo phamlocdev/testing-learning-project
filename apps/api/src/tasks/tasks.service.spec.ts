@@ -19,6 +19,7 @@ describe('TaskService', () => {
     taskRepository = {
       findById: vi.fn(),
       findByTitleAndOwner: vi.fn(),
+      findAllByOwner: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
     };
@@ -68,6 +69,54 @@ describe('TaskService', () => {
       // Assert
       await expect(act).rejects.toThrow(ConflictException);
       expect(taskRepository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getTask', () => {
+    it('returns the task when it exists', async () => {
+      // Arrange
+      const task: Task = {
+        id: 't1',
+        title: 'Write report',
+        ownerId: 'user-A',
+        done: false,
+      };
+      taskRepository.findById.mockResolvedValue(task);
+
+      // Act
+      const result = await taskService.getTask('t1');
+
+      // Assert
+      expect(result).toEqual(task);
+    });
+
+    it('throws NotFound when the task does not exist', async () => {
+      // Arrange
+      taskRepository.findById.mockResolvedValue(null);
+
+      // Act
+      const act = () => taskService.getTask('missing');
+
+      // Assert
+      await expect(act).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listTasks', () => {
+    it('returns all tasks belonging to the owner', async () => {
+      // Arrange
+      const tasks: Task[] = [
+        { id: 't1', title: 'Write report', ownerId: 'user-A', done: false },
+        { id: 't2', title: 'Review PR', ownerId: 'user-A', done: true },
+      ];
+      taskRepository.findAllByOwner.mockResolvedValue(tasks);
+
+      // Act
+      const result = await taskService.listTasks('user-A');
+
+      // Assert
+      expect(result).toEqual(tasks);
+      expect(taskRepository.findAllByOwner).toHaveBeenCalledWith('user-A');
     });
   });
 

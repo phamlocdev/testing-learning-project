@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 1 — Unit Testing (hoàn thành, chờ xác nhận chuyển Stage 2)
+**Stage hiện tại:** Stage 2 — Integration Testing
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -26,8 +26,8 @@
 - [x] Next.js: unit test 1 custom hook validate form
 
 ## Stage 2 — Integration Testing
-- [ ] Setup Testcontainers cho PostgreSQL trong backend test suite
-- [ ] Viết integration test cho `POST /tasks` bằng Supertest (request thật → assert response +
+- [x] Setup Testcontainers cho PostgreSQL trong backend test suite
+- [x] Viết integration test cho `POST /tasks` bằng Supertest (request thật → assert response +
       query DB thật trong container để verify)
 - [ ] Setup MSW cho frontend test suite
 - [ ] Integration test flow "submit form tạo task → gọi API → hiển thị task mới" với MSW mock
@@ -57,6 +57,118 @@
 - [ ] Load test (k6)
 
 ---
+
+### 2026-10-15 (TasksController CRUD + Supertest integration test)
+- **Quyết định đổi hướng so với milestone gốc (chỉ `POST /tasks`):** user đặt câu hỏi tại sao
+  cần cả `prisma-task.repository.e2e-spec.ts` (test tầng repository riêng) lẫn Supertest test
+  tầng HTTP — nhận ra `TaskRepository` không có business logic riêng (logic nằm ở
+  `TaskService`, đã unit test ở Stage 1), nên giữ cả 2 tầng test là trùng lặp coverage không
+  cần thiết. User chọn: xoá file repository-level test, build **đủ 4 endpoint CRUD**
+  (POST/GET list/GET detail/DELETE) vì nghĩ rằng client thật sẽ cần dùng cả 4 trong tương lai,
+  và dùng Supertest cover toàn bộ qua đường HTTP thật (tự nhiên cover luôn cả 4 method của
+  repository, không cần test tầng repository riêng nữa).
+- Mở rộng `TaskRepository` (thêm `findAllByOwner`), `PrismaTaskRepository`, `TaskService`
+  (thêm `getTask` ném `NotFoundException` nếu không tồn tại, `listTasks` trả tasks theo
+  owner) + unit test tương ứng trong `tasks.service.spec.ts` (mock/stub quen thuộc từ Stage 1).
+- Viết `TasksController` (`POST /tasks`, `GET /tasks?ownerId=`, `GET /tasks/:id`,
+  `DELETE /tasks/:id?requesterId=`) + `TasksModule` (wiring `PrismaTaskRepository` làm
+  implementation thật của `TaskRepository` qua DI token), import vào `AppModule`. Exception
+  nghiệp vụ (`ConflictException`/`NotFoundException`/`ForbiddenException`) tự động map sang
+  đúng HTTP status (409/404/403) nhờ NestJS exception filter mặc định, không cần code thêm.
+- **Sự cố kỹ thuật phát sinh khi wiring qua NestJS DI (đã xử lý):** `PrismaService` ban đầu
+  nhận `connectionString: string` qua constructor param để test có thể trỏ DB động — nhưng khi
+  để NestJS tự dựng qua DI (`TasksModule` → `AppModule`) thay vì gọi `new PrismaService(...)`
+  thủ công như ở file test cũ, NestJS cố resolve param đó như 1 injection token và lỗi (kiểu
+  nguyên thủy `string` không phải provider token hợp lệ). Sửa: bỏ constructor param, đọc thẳng
+  `process.env.DATABASE_URL` bên trong constructor; test set biến môi trường này **trước khi**
+  gọi `Test.createTestingModule({ imports: [AppModule] }).compile()`.
+- Xoá `prisma-task.repository.e2e-spec.ts`, thay bằng
+  `apps/api/test/tasks.e2e-spec.ts`: dựng Nest app đầy đủ (`AppModule`) + Testcontainers
+  Postgres thật, test qua Supertest cho cả 4 endpoint — tạo task, 409 khi trùng title/owner,
+  list đúng task theo owner, lấy chi tiết + 404 khi không tồn tại, xoá + 404 sau khi xoá +
+  403 khi không phải owner.
+- Verify: `pnpm --filter api test` (unit) → 9/9 pass (thêm 3 test case cho `getTask`/
+  `listTasks`), `pnpm --filter api test:e2e` → 9/9 pass (8 test case HTTP mới + 1 app e2e có
+  sẵn), không còn container Postgres nào sót lại sau khi chạy xong.
+- **Fix phát sinh sau khi IDE báo lỗi build (đã xử lý):**
+  1. `isolatedModules` + `emitDecoratorMetadata`: `CreateTaskDto`/`Task` chỉ là type (interface)
+     nhưng được dùng trong tham số decorator (`@Body()`/`@Param()`) — TypeScript không emit
+     được runtime metadata cho type-only import thường, phải đổi sang `import type`.
+  2. `nest build` dùng `tsconfig.build.json` với `rootDir: "./src"`, nhưng Prisma Client lúc
+     đầu generate ra `apps/api/generated/prisma` (ngoài `src/`) → lỗi TS6059. Đổi
+     `output` trong `schema.prisma` thành `../src/generated/prisma`, cập nhật `.gitignore`
+     tương ứng.
+  3. Lộ ra bug thật khi sửa (2): path import trong `prisma.service.ts` bị lệch 1 cấp
+     (`../../generated/prisma/client.js` phải sửa thành `../generated/prisma/client.js`).
+  - Verify lại: `pnpm --filter api build` sạch, `pnpm --filter api lint` pass, unit 9/9 +
+    integration 9/9 vẫn pass sau các fix.
+- **Stage 2 backend hoàn thành 2/2 milestone.** Next milestone: Setup MSW cho frontend test
+  suite.
+
+### 2026-10-15 (Env setup cho local dev — không thuộc checklist nhưng cần để chạy `start:dev`)
+- **Lý do:** chạy thử `pnpm --filter api start:dev` thật (ngoài test suite) bị
+  `PrismaClientKnownRequestError: ECONNREFUSED` — vì `main.ts` chưa load `.env` nên
+  `process.env.DATABASE_URL` là `undefined` lúc runtime (test suite không bị ảnh hưởng vì tự
+  set biến này thủ công trước khi compile module).
+- Cài `dotenv`, thêm `import 'dotenv/config';` làm dòng đầu tiên `apps/api/src/main.ts`
+  (phải đứng trước mọi import khác để biến môi trường có sẵn khi NestJS khởi tạo provider).
+- Thêm `PORT=3001` vào `.env` của `apps/api` (đổi khỏi mặc định 3000 vì `apps/web` dev server
+  của Next.js cũng mặc định dùng cổng 3000 — tránh xung đột).
+- Tạo `.env.example` (commit vào git) cho cả `apps/api` và `apps/web`, làm template cho
+  `.env`/`.env.local` thật (gitignored). `apps/web/.gitignore` sẵn có pattern `.env*` quét luôn
+  cả `.env.example` — đã thêm dòng `!.env.example` để exception file này được track.
+  `apps/web/.env.local` thêm `NEXT_PUBLIC_API_URL` trỏ sang `apps/api` (dùng cho milestone MSW
+  sắp tới, tránh hardcode base URL khi viết API client).
+- Thêm `docker-compose.yml` ở root — Postgres **bền** (persistent qua volume) riêng cho local
+  dev, khác hẳn Testcontainers (ephemeral, chỉ sống trong lúc chạy test). Chạy
+  `docker compose up -d` 1 lần, dữ liệu giữ nguyên qua các lần restart.
+- Verify: `docker compose up -d` → `prisma migrate deploy` → `pnpm --filter api start:dev` →
+  `POST /tasks` qua `curl` trả về task thật, lưu đúng vào Postgres dev. Unit (9/9) + integration
+  (9/9) test vẫn pass sau khi thêm `dotenv` dependency.
+
+### 2026-10-15 (Testcontainers Postgres setup — Stage 2 bắt đầu)
+- Chọn **Prisma** làm query layer cho `TaskRepository` (quyết định cùng user, có cân nhắc
+  `pg` raw SQL / TypeORM nhưng user ưu tiên Prisma).
+- **Sự cố khi cài đặt, đã xử lý:** package `prisma` (CLI) có dist-tag `latest` trỏ vào bản
+  **release candidate 8.0.0-rc.22** (sản phẩm "Prisma Platform" mới — Composer/Compute/cloud
+  hosting, không phải ORM self-hosted cổ điển), gây mismatch major với `@prisma/client` (bản
+  stable `7.10.0`, dist-tag `prev`). Đã pin cả 2 package về đúng `7.10.0` (stable, khớp nhau).
+  **Lưu ý cho tương lai:** khi thêm dependency Prisma, luôn kiểm tra dist-tag thật
+  (`npm view prisma dist-tags`) thay vì tin `^latest`, vì Prisma đang trong giai đoạn chuyển
+  sang kiến trúc Platform mới và đẩy bản RC lên `latest` sớm.
+- `prisma init` (bản 7.10.0 không preview feature) tự động cài thêm ~60 file "agent skill"
+  (tài liệu cho AI agent, hợp lệ nhưng không cần) vào `.claude/skills/`, `.windsurf/skills/`,
+  `.agents/skills/` + `skills-lock.json` — đã xoá, dùng flag `--no-skills` lần sau nếu init lại.
+- Prisma 7 **bắt buộc driver adapter** (không còn Rust query engine ngầm định như Prisma
+  5/6) — cài thêm `@prisma/adapter-pg` + `pg`. `PrismaService` (`apps/api/src/prisma/`) nhận
+  `connectionString` qua constructor, dùng `new PrismaPg({ connectionString })` — đây chính là
+  điểm mấu chốt giúp test trỏ PrismaClient vào Postgres động của Testcontainers thay vì URL cố
+  định trong `.env`.
+- Định nghĩa `model Task` trong `prisma/schema.prisma` (khớp entity `Task` hiện có), tạo
+  migration đầu tiên (`prisma/migrations/20261015025151_init`) bằng cách dựng tạm 1 container
+  Postgres qua `docker run` (không phải Testcontainers — chỉ để generate SQL migration 1 lần),
+  chạy `prisma migrate dev --name init`, rồi xoá container tạm.
+- Viết `PrismaTaskRepository` (`apps/api/src/tasks/prisma-task.repository.ts`) implement đúng
+  `TaskRepository` abstract class bằng Prisma Client thật.
+- Cài `@testcontainers/postgresql`. Viết
+  `apps/api/test/prisma-task.repository.e2e-spec.ts`: `beforeAll` dựng
+  `PostgreSqlContainer('postgres:16-alpine')` qua Testcontainers, chạy `prisma migrate deploy`
+  (shell ra qua `execSync`, trỏ `DATABASE_URL` vào connection string của container) để áp
+  schema thật, rồi mới chạy 4 test case CRUD thật (create+findById, findByTitleAndOwner tìm
+  thấy/không thấy, delete) qua Prisma Client nói chuyện với Postgres thật trong container.
+  `afterAll` disconnect + stop container — verify không còn container nào sót lại sau khi
+  test xong.
+- **Lưu ý cài đặt trên Windows:** cài `prisma`, `@testcontainers/postgresql` kéo theo vài
+  native build script (`esbuild`, `@prisma/engines`, `ssh2`, `cpu-features`, `protobufjs`) bị
+  pnpm chặn mặc định — approve qua `allowBuilds` trong `pnpm-workspace.yaml` (không dùng
+  `pnpm approve-builds` vì cần TTY tương tác, không chạy được trong agent). `ssh2`'s optional
+  native crypto binding build fail do thiếu Visual Studio Build Tools — không sao vì
+  Testcontainers chỉ cần ssh2 khi tunnel Docker qua SSH, không áp dụng cho Docker Desktop local.
+- Verify: `pnpm --filter api test:e2e` → 5/5 pass (4 integration test mới + 1 app e2e có sẵn),
+  `pnpm --filter api test` (unit) vẫn 6/6 pass.
+- Next milestone: viết `TasksController` + `TasksModule` wiring `PrismaTaskRepository`, rồi
+  integration test `POST /tasks` bằng Supertest (request thật qua HTTP → assert response +
+  query DB thật trong container để verify).
 
 ## Log
 

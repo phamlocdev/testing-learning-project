@@ -4,3 +4,9 @@ packages:
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  prisma: true
+  "@prisma/engines": true
+  esbuild: true
+  cpu-features: true
+  protobufjs: true
+  ssh2: true
