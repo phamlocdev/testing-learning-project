@@ -19,8 +19,8 @@
 
 ## Stage 1 — Unit Testing
 - [x] Scaffold `apps/api` (NestJS, pnpm) và `apps/web` (Next.js client-side, pnpm)
-- [ ] NestJS: viết `TaskService` với rule nghiệp vụ (chống trùng tên, chỉ owner xoá được)
-- [ ] NestJS: unit test `TaskService` bằng Jest, mock `TaskRepository` qua `overrideProvider`
+- [x] NestJS: viết `TaskService` với rule nghiệp vụ (chống trùng tên, chỉ owner xoá được)
+- [x] NestJS: unit test `TaskService` bằng Vitest, mock `TaskRepository` qua `useValue` (stub)
 - [ ] Next.js: setup Vitest + React Testing Library
 - [ ] Next.js: unit test component `TaskItem` (trạng thái done/pending)
 - [ ] Next.js: unit test 1 custom hook validate form
@@ -59,6 +59,18 @@
 ---
 
 ## Log
+
+### 2026-10-15 (TaskService unit test)
+- Viết `TaskService` (`apps/api/src/tasks/`): entity `Task`, abstract `TaskRepository` (DI token,
+  chưa có implementation thật — Stage 2 mới cài Postgres), `createTask` (chống trùng title
+  trong phạm vi cùng 1 owner, throw `ConflictException`), `deleteTask` (throw `NotFoundException`
+  nếu task không tồn tại, `ForbiddenException` nếu requester không phải owner).
+- Viết `tasks.service.spec.ts`: 5 test case mới (2 cho createTask, 3 cho deleteTask), dùng
+  `Test.createTestingModule` + `useValue` stub cho `TaskRepository` (đúng là stub, không phải
+  mock, vì chỉ control giá trị trả về — có 1 chỗ dùng `toHaveBeenCalledWith`/`not.toHaveBeenCalled`
+  để verify side-effect, đó là phần mang tính "mock" của cùng 1 object double).
+- Verify: `pnpm --filter api test` → 6/6 pass (bao gồm 1 stub test mặc định cũ).
+- Next milestone: Next.js — setup Vitest + React Testing Library.
 
 ### 2026-10-15 (scaffold)
 - Cài pnpm global (npm i -g pnpm, v12.11.2) vì máy chưa có sẵn.

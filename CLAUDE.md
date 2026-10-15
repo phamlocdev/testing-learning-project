@@ -50,6 +50,11 @@ testing, test plan documents — đó là việc của QA, ngoài phạm vi lear
    (không bắt buộc 100% hoàn hảo, nhưng checklist chính phải pass).
 6. Khi user bắt đầu session mới và nói kiểu "tiếp tục học đi" mà không nói rõ stage nào — mặc
    định tiếp tục từ milestone đầu tiên chưa tick trong `PROGRESS.md`.
+7. **KHÔNG tự ý `git commit`** sau khi code xong 1 milestone — kể cả khi milestone đó bao gồm
+   cập nhật `CLAUDE.md`/`PROGRESS.md`. User muốn tự review toàn bộ diff rồi tự commit. Vẫn cứ
+   edit/tick `PROGRESS.md` bình thường (đó là việc cập nhật nội dung file, không phải git
+   action), nhưng dừng lại ở mức tóm tắt thay đổi cho user xem — chỉ `git commit` khi user yêu
+   cầu rõ ràng ngay tại thời điểm đó.
 
 ## Learning Path đã chốt
 
