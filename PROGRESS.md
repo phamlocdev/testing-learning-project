@@ -21,7 +21,7 @@
 - [x] Scaffold `apps/api` (NestJS, pnpm) và `apps/web` (Next.js client-side, pnpm)
 - [x] NestJS: viết `TaskService` với rule nghiệp vụ (chống trùng tên, chỉ owner xoá được)
 - [x] NestJS: unit test `TaskService` bằng Vitest, mock `TaskRepository` qua `useValue` (stub)
-- [ ] Next.js: setup Vitest + React Testing Library
+- [x] Next.js: setup Vitest + React Testing Library
 - [ ] Next.js: unit test component `TaskItem` (trạng thái done/pending)
 - [ ] Next.js: unit test 1 custom hook validate form
 
@@ -59,6 +59,22 @@
 ---
 
 ## Log
+
+### 2026-10-15 (Vitest + RTL setup cho apps/web)
+- Cài `vitest`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`,
+  `@testing-library/jest-dom`, `@testing-library/user-event`, `@vitest/coverage-v8` vào
+  `apps/web` (devDependencies).
+- Tạo `apps/web/vitest.config.mts` (environment `jsdom`, `tsconfigPaths` resolve alias `@/*`
+  giống style `apps/api/vitest.config.ts`, `globals: true`, include `src/**/*.spec.{ts,tsx}`).
+  Dùng đuôi `.mts` để tránh warning ESM-in-CJS (web chưa có `"type": "module"` trong
+  `package.json`, khác api).
+- Tạo `apps/web/vitest.setup.ts` import `@testing-library/jest-dom/vitest` (matcher
+  `toBeInTheDocument` v.v.).
+- Thêm script `test`/`test:watch`/`test:cov` vào `apps/web/package.json`.
+- Verify bằng 1 sanity test tạm (render `<p>hello</p>`, assert `toBeInTheDocument`) → pass,
+  sau đó xoá vì không phải test case thật của app.
+- Next milestone: unit test component `TaskItem` (trạng thái done/pending) — cần viết component
+  này trước vì `apps/web/src/app` hiện chỉ có page mặc định từ `create-next-app`.
 
 ### 2026-10-15 (TaskService unit test)
 - Viết `TaskService` (`apps/api/src/tasks/`): entity `Task`, abstract `TaskRepository` (DI token,
