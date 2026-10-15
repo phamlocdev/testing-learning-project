@@ -22,7 +22,7 @@
 - [x] NestJS: viết `TaskService` với rule nghiệp vụ (chống trùng tên, chỉ owner xoá được)
 - [x] NestJS: unit test `TaskService` bằng Vitest, mock `TaskRepository` qua `useValue` (stub)
 - [x] Next.js: setup Vitest + React Testing Library
-- [ ] Next.js: unit test component `TaskItem` (trạng thái done/pending)
+- [x] Next.js: unit test component `TaskItem` (trạng thái done/pending)
 - [ ] Next.js: unit test 1 custom hook validate form
 
 ## Stage 2 — Integration Testing
@@ -59,6 +59,20 @@
 ---
 
 ## Log
+
+### 2026-10-15 (TaskItem component unit test)
+- Tạo `apps/web/src/types/task.ts`: type `Task` phía frontend, độc lập với entity `Task` của
+  `apps/api` (repo không share code giữa 2 app theo quyết định flat structure trong
+  `CLAUDE.md`).
+- Viết `apps/web/src/components/TaskItem.tsx`: hiển thị title + checkbox phản ánh `task.done`
+  (checked/unchecked), style `textDecoration: line-through` khi done, gọi
+  `onToggleDone?.(task.id)` khi checkbox đổi trạng thái.
+- Viết `TaskItem.spec.tsx`: 4 test case theo hành vi user thấy được (test qua
+  `getByText`/`getByRole('checkbox')`, không test implementation detail như CSS class nội
+  bộ) — render đúng title, checkbox unchecked khi pending, checked khi done, và
+  `@testing-library/user-event` click checkbox gọi đúng `onToggleDone` với task id.
+- Verify: `pnpm --filter web test` → 4/4 pass.
+- Next milestone: unit test 1 custom hook validate form.
 
 ### 2026-10-15 (Vitest + RTL setup cho apps/web)
 - Cài `vitest`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`,
