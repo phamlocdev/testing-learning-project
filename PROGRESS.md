@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 2 — Integration Testing
+**Stage hiện tại:** Stage 2 — Integration Testing (hoàn thành, chờ xác nhận chuyển Stage 3)
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -29,8 +29,8 @@
 - [x] Setup Testcontainers cho PostgreSQL trong backend test suite
 - [x] Viết integration test cho `POST /tasks` bằng Supertest (request thật → assert response +
       query DB thật trong container để verify)
-- [ ] Setup MSW cho frontend test suite
-- [ ] Integration test flow "submit form tạo task → gọi API → hiển thị task mới" với MSW mock
+- [x] Setup MSW cho frontend test suite
+- [x] Integration test flow "submit form tạo task → gọi API → hiển thị task mới" với MSW mock
       NestJS endpoint
 
 ## Stage 3 — E2E Testing
@@ -125,6 +125,26 @@
 - Verify: `docker compose up -d` → `prisma migrate deploy` → `pnpm --filter api start:dev` →
   `POST /tasks` qua `curl` trả về task thật, lưu đúng vào Postgres dev. Unit (9/9) + integration
   (9/9) test vẫn pass sau khi thêm `dotenv` dependency.
+
+### 2026-10-15 (MSW setup + integration test flow tạo task — hoàn thành Stage 2)
+- Cài `msw`. Viết `apps/web/src/mocks/handlers.ts` (mock `POST {API_BASE_URL}/tasks` trả về
+  task giả) + `apps/web/src/mocks/server.ts` (`setupServer` từ `msw/node`), wire vào
+  `vitest.setup.ts` (`server.listen`/`resetHandlers`/`close` qua `beforeAll`/`afterEach`/
+  `afterAll`) — network boundary giữa web và NestJS API được mock hoàn toàn trong test, không
+  gọi ra ngoài thật.
+- Viết `apps/web/src/lib/api/tasks.ts`: `createTask()` gọi `fetch` thẳng tới NestJS API (đúng
+  kiến trúc client-side thuần đã chốt trong `CLAUDE.md`, không qua Route Handler/Server
+  Action), đọc base URL từ `NEXT_PUBLIC_API_URL` (fallback `http://localhost:3001` để test
+  chạy được mà không cần load `.env.local` vào Vitest).
+- Viết `CreateTaskForm` (tái dùng `useTaskTitleForm` từ Stage 1 để validate title) và
+  `TaskList` (giữ state danh sách task, render `TaskItem` cho mỗi task) — đúng tinh thần
+  "nhiều unit phối hợp thật trong trình duyệt ảo" của integration test frontend.
+- Viết `TaskList.spec.tsx`: 3 test case cho flow "submit form tạo task → gọi API (MSW
+  intercept) → hiển thị task mới trong list", input tự clear sau khi tạo, và validate lỗi
+  (title rỗng) không gọi API/không thêm task vào list.
+- Verify: `pnpm --filter web test` → 13/13 pass (4 TaskItem + 6 hook + 3 integration mới).
+- **Stage 2 hoàn thành toàn bộ 4/4 milestone** (2 backend + 2 frontend). Chờ user xác nhận
+  trước khi chuyển sang Stage 3 — E2E Testing (Playwright).
 
 ### 2026-10-15 (Testcontainers Postgres setup — Stage 2 bắt đầu)
 - Chọn **Prisma** làm query layer cho `TaskRepository` (quyết định cùng user, có cân nhắc
