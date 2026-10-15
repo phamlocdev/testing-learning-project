@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 3 — E2E Testing (hoàn thành, chờ xác nhận chuyển Stage 4)
+**Stage hiện tại:** Stage 4 — Automation & CI
 **Cập nhật lần cuối:** 2026-10-15
 
 ---
@@ -38,7 +38,7 @@
 - [x] Viết kịch bản E2E: đăng nhập → tạo task → đánh dấu done → logout (chạy FE+BE local)
 
 ## Stage 4 — Automation & CI
-- [ ] Viết GitHub Actions workflow chạy unit test (api + web)
+- [x] Viết GitHub Actions workflow chạy unit test (api + web)
 - [ ] Thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub runner)
 - [ ] Thêm job E2E Playwright trên CI
 - [ ] Setup coverage report + badge trong README
@@ -332,6 +332,26 @@
   query DB thật trong container để verify).
 
 ## Log
+
+### 2026-10-15 (GitHub Actions workflow cho unit test — Stage 4 bắt đầu)
+- User xác nhận Stage 3 đã vững, chuyển sang Stage 4 — Automation & CI.
+- Tạo `.github/workflows/ci.yml`: 2 job riêng `unit-test-api`/`unit-test-web`, trigger trên
+  `push`/`pull_request` cho cả nhánh `main` lẫn `dev` (user có quy trình `feature → dev → main`,
+  muốn CI chạy cả khi PR/push vào `dev`, không chỉ `main`). Mỗi job: `actions/checkout` →
+  `pnpm/action-setup` →
+  `actions/setup-node@v4` (Node 24, `cache: pnpm`) → `pnpm install --frozen-lockfile` →
+  `pnpm --filter <api|web> test`.
+- **Lý do tách job + chỉ chạy unit test ở milestone này:** unit test (Stage 1) không cần DB/
+  network thật (api mock `TaskRepository`, web mock network qua MSW) nên chạy được ngay trên
+  GitHub-hosted runner, không cần Docker. Integration test (Testcontainers) và E2E (Playwright)
+  cần runner support Docker-in-Docker, để milestone riêng xử lý sau.
+- Verify local (mô phỏng CI): `pnpm install --frozen-lockfile` rồi `pnpm --filter api test` →
+  17/17 pass, `pnpm --filter web test` → 20/20 pass. (Build fail của `cpu-features`/`ssh2` lúc
+  install là lỗi native addon tối ưu tuỳ chọn trên Windows, đã biết từ Stage 2, không ảnh hưởng
+  test — GitHub-hosted runner dùng Ubuntu nên các addon optional này thường build được, không
+  vấn đề gì tới workflow.)
+- Next milestone: thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub
+  runner).
 
 ### 2026-10-15 (custom hook validate form unit test — hoàn thành Stage 1)
 - Viết `apps/web/src/hooks/useTaskTitleForm.ts`: hook validate title của form tạo task
