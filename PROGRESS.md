@@ -5,11 +5,12 @@
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
 **Stage hiện tại:** Stage 4 — Automation & CI
-**Cập nhật lần cuối:** 2026-10-15
+**Cập nhật lần cuối:** 2026-10-16
 
 ---
 
 ## Stage 0 — Tư duy nền tảng (không code)
+
 - [x] Hiểu Testing Pyramid + tỷ lệ 70/20/10
 - [x] Hiểu Test Double: mock/stub/spy/fake, phân biệt được khi nào dùng loại nào
 - [x] Hiểu AAA pattern
@@ -18,6 +19,7 @@
 - [x] Đọc qua khái niệm Testing Trophy (Kent C. Dodds)
 
 ## Stage 1 — Unit Testing
+
 - [x] Scaffold `apps/api` (NestJS, pnpm) và `apps/web` (Next.js client-side, pnpm)
 - [x] NestJS: viết `TaskService` với rule nghiệp vụ (chống trùng tên, chỉ owner xoá được)
 - [x] NestJS: unit test `TaskService` bằng Vitest, mock `TaskRepository` qua `useValue` (stub)
@@ -26,6 +28,7 @@
 - [x] Next.js: unit test 1 custom hook validate form
 
 ## Stage 2 — Integration Testing
+
 - [x] Setup Testcontainers cho PostgreSQL trong backend test suite
 - [x] Viết integration test cho `POST /tasks` bằng Supertest (request thật → assert response +
       query DB thật trong container để verify)
@@ -34,22 +37,26 @@
       NestJS endpoint
 
 ## Stage 3 — E2E Testing
+
 - [x] Setup Playwright trong repo
 - [x] Viết kịch bản E2E: đăng nhập → tạo task → đánh dấu done → logout (chạy FE+BE local)
 
 ## Stage 4 — Automation & CI
+
 - [x] Viết GitHub Actions workflow chạy unit test (api + web)
 - [x] Thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub runner)
-- [ ] Thêm job E2E Playwright trên CI
+- [x] Thêm job E2E Playwright trên CI
 - [ ] Setup coverage report + badge trong README
 
 ## Stage 5 — Deploy + Production Smoke Test
+
 - [ ] Deploy `apps/web` lên Vercel (free tier)
 - [ ] Deploy `apps/api` lên Render (free tier)
 - [ ] Setup Postgres production trên Neon hoặc Supabase (free tier)
 - [ ] Viết Playwright smoke test nhắm vào URL production
 
 ## Stage 6 — Nâng cao (tuỳ chọn)
+
 - [ ] Test data factories (`@faker-js/faker`)
 - [ ] Contract testing (Pact)
 - [ ] Mutation testing (Stryker)
@@ -59,6 +66,7 @@
 ---
 
 ### 2026-10-15 (Fix bug CI thật: thiếu `postinstall` generate Prisma Client — phát hiện khi chạy job integration-test-api trên GitHub)
+
 - **Bug phát hiện qua verify thật trên GitHub Actions (user báo, kèm log lỗi):** job
   `integration-test-api` fail ngay từ lúc import module, chưa chạy được test case nào —
   `Error: Cannot find module '../generated/prisma/client.js'`.
@@ -80,6 +88,7 @@
   regression.
 
 ### 2026-10-15 (Fix bug: refresh trang bị văng về /login dù đã đăng nhập — bổ sung sau Stage 4 milestone 1)
+
 - **Bug phát hiện qua testing thủ công (user báo):** sau khi login/register thành công, điều
   hướng đúng về `/` — nhưng F5 refresh thật lại bị bắn ngược về `/login` dù token vẫn còn hợp lệ
   trong `localStorage`.
@@ -91,7 +100,7 @@
   kịp hydrate từ `localStorage` → redirect nhầm trước khi `AuthProvider` kịp set token thật.
 - **Fix:** thêm cờ `isInitialized` vào `AuthContext` (set `true` trong `finally` của effect đọc
   `localStorage`, dù tìm thấy token hay không). `Home` chỉ redirect khi `isInitialized === true
-  && !token`, và render `null` (chờ) khi chưa `isInitialized` — tránh flash nội dung sai trước
+&& !token`, và render `null` (chờ) khi chưa `isInitialized` — tránh flash nội dung sai trước
   khi auth state ổn định.
 - **Lưu ý:** unit test (RTL) không bắt được bug này vì không mô phỏng đúng thứ tự effect
   cha/con khi có flow routing + hydrate từ `localStorage` thật qua F5 — phải verify bằng tay
@@ -99,6 +108,7 @@
   test thủ công trên browser xác nhận refresh giữ nguyên trạng thái đăng nhập.
 
 ### 2026-10-15 (Register page riêng + React Hook Form/Zod validation — bổ sung sau Stage 3)
+
 - **Theo yêu cầu user:** tách `/login` và `/register` thành route riêng (trước đó gộp hết vào
   `/`), thêm trang đăng ký thật (trước đó bỏ qua vì kịch bản Stage 3 không cần), và chuyển
   validate form từ tay (`useState` + check thủ công) sang **React Hook Form + Zod**.
@@ -136,16 +146,19 @@
   tiếp, api unit 17/17 (không đổi).
 
 ### 2026-10-15 (Build auth + toggle-done, kịch bản E2E đầy đủ — hoàn thành Stage 3)
+
 - **Quyết định cùng user:** để viết được kịch bản E2E đầy đủ, build đủ auth cơ bản + toggle-done
   thay vì đơn giản hoá kịch bản hay dùng auth giả — theo đúng quy trình feature + test đã dùng
   xuyên suốt learning path.
 
 **Backend — toggle-done:**
+
 - Thêm `setDone(id, done)` vào `TaskRepository`/`PrismaTaskRepository`, `setTaskDone()` vào
   `TaskService` (check ownership giống `deleteTask`, ném `NotFoundException`/`ForbiddenException`).
 - Thêm `PATCH /tasks/:id` vào `TasksController`. Unit test (3 case) + integration test (3 case).
 
 **Backend — auth:**
+
 - Thêm `model User` vào `prisma/schema.prisma` (migration `add_user`), `UserRepository`/
   `PrismaUserRepository` theo đúng port-adapter pattern đã dùng cho `Task`.
 - Cài `bcryptjs` (pure JS, tránh native build fail như `ssh2`/`cpu-features` trên Windows đã
@@ -165,6 +178,7 @@
 - Verify: unit 17/17, integration 18/18 (3 file: app/auth/tasks), lint + build sạch.
 
 **Frontend — auth + toggle-done UI:**
+
 - `lib/api/auth.ts` (`loginUser`), `lib/auth/decode-jwt.ts` (decode payload JWT thuần, không
   verify — server đã verify, client chỉ cần đọc claim để hiển thị), `AuthContext` (lưu token
   vào `localStorage`, derive `user` từ token, expose `login`/`logout`).
@@ -191,6 +205,7 @@
 - Verify: `pnpm --filter web test` → 15/15 pass, build Next.js sạch.
 
 **E2E — kịch bản đầy đủ:**
+
 - Xoá `create-task.spec.ts` (smoke test cũ), thay bằng `login-and-manage-task.spec.ts`: seed
   user qua API trực tiếp (`fetch` tới `/auth/register`, không qua UI — đăng ký không phải
   trọng tâm kịch bản này), rồi Playwright lái UI thật: điền form login → tạo task → click
@@ -201,6 +216,7 @@
   2 app sạch. Chờ user xác nhận trước khi chuyển Stage 4 — Automation & CI.
 
 ### 2026-10-15 (TasksController CRUD + Supertest integration test)
+
 - **Quyết định đổi hướng so với milestone gốc (chỉ `POST /tasks`):** user đặt câu hỏi tại sao
   cần cả `prisma-task.repository.e2e-spec.ts` (test tầng repository riêng) lẫn Supertest test
   tầng HTTP — nhận ra `TaskRepository` không có business logic riêng (logic nằm ở
@@ -248,6 +264,7 @@
   suite.
 
 ### 2026-10-15 (Env setup cho local dev — không thuộc checklist nhưng cần để chạy `start:dev`)
+
 - **Lý do:** chạy thử `pnpm --filter api start:dev` thật (ngoài test suite) bị
   `PrismaClientKnownRequestError: ECONNREFUSED` — vì `main.ts` chưa load `.env` nên
   `process.env.DATABASE_URL` là `undefined` lúc runtime (test suite không bị ảnh hưởng vì tự
@@ -269,6 +286,7 @@
   (9/9) test vẫn pass sau khi thêm `dotenv` dependency.
 
 ### 2026-10-15 (MSW setup + integration test flow tạo task — hoàn thành Stage 2)
+
 - Cài `msw`. Viết `apps/web/src/mocks/handlers.ts` (mock `POST {API_BASE_URL}/tasks` trả về
   task giả) + `apps/web/src/mocks/server.ts` (`setupServer` từ `msw/node`), wire vào
   `vitest.setup.ts` (`server.listen`/`resetHandlers`/`close` qua `beforeAll`/`afterEach`/
@@ -289,6 +307,7 @@
   trước khi chuyển sang Stage 3 — E2E Testing (Playwright).
 
 ### 2026-10-15 (Setup Playwright — Stage 3 bắt đầu)
+
 - **Quyết định cấu trúc cùng user:** đặt Playwright ở package riêng `apps/e2e` (không thuộc
   `api` hay `web`) vì nó test cả 2 app chạy cùng lúc — khớp pattern `apps/*` sẵn có, không cần
   thêm Turborepo/Nx.
@@ -328,6 +347,7 @@
   cần build thêm auth + toggle-done trước (xem gap đã ghi ở trên).
 
 ### 2026-10-15 (Testcontainers Postgres setup — Stage 2 bắt đầu)
+
 - Chọn **Prisma** làm query layer cho `TaskRepository` (quyết định cùng user, có cân nhắc
   `pg` raw SQL / TypeORM nhưng user ưu tiên Prisma).
 - **Sự cố khi cài đặt, đã xử lý:** package `prisma` (CLI) có dist-tag `latest` trỏ vào bản
@@ -373,7 +393,33 @@
 
 ## Log
 
+### 2026-10-16 (Thêm job E2E Playwright vào CI)
+
+- Thêm job `e2e-test` vào `.github/workflows/ci.yml`: khác hẳn `integration-test-api` (dùng
+  Testcontainers tự dựng Postgres ephemeral trong test code), job này cần Postgres **service
+  container** thật của GitHub Actions (`services: postgres`) vì `apps/e2e` chạy qua
+  `nest start --watch`/`next dev` thật (không phải test code tự quản DB) — 2 dev server này
+  đọc `DATABASE_URL`/`JWT_SECRET` trực tiếp từ `process.env` (qua `dotenv/config`), không có cơ
+  chế tự dựng container như Testcontainers.
+- Steps: checkout → pnpm/action-setup → setup-node → install → `prisma migrate deploy` (áp
+  schema thật lên Postgres service) → `playwright install --with-deps chromium` (cài browser +
+  OS dependency trên runner sạch, chưa từng cài) → `pnpm --filter e2e test`.
+- **Bug phát hiện khi verify local mô phỏng đúng CI (trước khi push, theo đúng bài học từ lần
+  Prisma generate thiếu ở integration-test-api):** set `PORT=3001` ở job-level `env` (định làm
+  giống cách `.env` local cấp `PORT` cho riêng api) khiến `next dev` cũng đọc trúng biến này —
+  Next.js tự tôn trọng `$PORT` giống Nest — nên cả 2 dev server cùng cố bind vào `:3001`, web
+  crash `EADDRINUSE` ngay khi khởi động. Khác với local dev, nơi `PORT=3001` chỉ nằm trong
+  `apps/api/.env` và được `dotenv` nạp **riêng cho tiến trình api**, không lan ra `next dev`.
+  Fix: bỏ `PORT` khỏi job-level `env`, chuyển vào `env: { PORT: '3001' }` của đúng 1
+  `webServer` entry (api) trong `apps/e2e/playwright.config.ts` — scope đúng bằng Playwright
+  thay vì scope bằng GitHub Actions.
+- Verify: `docker compose up -d` (Postgres dev local) → `prisma migrate deploy` thành công →
+  chạy `pnpm --filter e2e test` với env vars y hệt job CI (trừ `PORT` theo đúng fix trên) →
+  4/4 Playwright test pass ổn định.
+- Next milestone: Setup coverage report + badge trong README.
+
 ### 2026-10-15 (Đổi tên job unit-test-web → test-web trong CI)
+
 - **User hỏi:** vì sao không có job `integration-test-web` tương ứng `integration-test-api`?
 - **Giải thích:** frontend không tách lệnh test riêng theo tầng như backend (`test` vs
   `test:e2e`) vì integration test frontend (Stage 2, vd `TaskList.spec.tsx`/
@@ -386,6 +432,7 @@
   integration test cần Testcontainers nặng/chậm hơn).
 
 ### 2026-10-15 (Thêm job integration test vào CI)
+
 - Thêm job `integration-test-api` vào `.github/workflows/ci.yml`: giống hệt cấu trúc job
   `unit-test-api` (checkout → pnpm/action-setup → setup-node → install), chỉ khác lệnh cuối
   đổi sang `pnpm --filter api test:e2e`.
@@ -402,6 +449,7 @@
 - Next milestone: thêm job E2E Playwright trên CI.
 
 ### 2026-10-15 (GitHub Actions workflow cho unit test — Stage 4 bắt đầu)
+
 - User xác nhận Stage 3 đã vững, chuyển sang Stage 4 — Automation & CI.
 - Tạo `.github/workflows/ci.yml`: 2 job riêng `unit-test-api`/`unit-test-web`, trigger trên
   `push`/`pull_request` cho cả nhánh `main` lẫn `dev` (user có quy trình `feature → dev → main`,
@@ -431,9 +479,10 @@
   `pnpm/action-setup@v4` thay vì dựa vào auto-detect.
 
 ### 2026-10-15 (custom hook validate form unit test — hoàn thành Stage 1)
+
 - Viết `apps/web/src/hooks/useTaskTitleForm.ts`: hook validate title của form tạo task
   (required, không cho whitespace-only nhờ `trim()`), trả về `{ title, error, setTitle,
-  validate }`; `setTitle` tự clear error cũ ngay khi user gõ lại.
+validate }`; `setTitle` tự clear error cũ ngay khi user gõ lại.
 - Viết `useTaskTitleForm.spec.ts`: 6 test case dùng `renderHook` + `act` từ
   `@testing-library/react` — state khởi tạo, cập nhật title, validate empty/whitespace-only
   (fail + set error), validate hợp lệ (pass + clear error), và error tự clear khi gõ lại.
@@ -443,6 +492,7 @@
   Postgres cho backend, MSW cho frontend).
 
 ### 2026-10-15 (TaskItem component unit test)
+
 - Tạo `apps/web/src/types/task.ts`: type `Task` phía frontend, độc lập với entity `Task` của
   `apps/api` (repo không share code giữa 2 app theo quyết định flat structure trong
   `CLAUDE.md`).
@@ -457,6 +507,7 @@
 - Next milestone: unit test 1 custom hook validate form.
 
 ### 2026-10-15 (Vitest + RTL setup cho apps/web)
+
 - Cài `vitest`, `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`,
   `@testing-library/jest-dom`, `@testing-library/user-event`, `@vitest/coverage-v8` vào
   `apps/web` (devDependencies).
@@ -473,6 +524,7 @@
   này trước vì `apps/web/src/app` hiện chỉ có page mặc định từ `create-next-app`.
 
 ### 2026-10-15 (TaskService unit test)
+
 - Viết `TaskService` (`apps/api/src/tasks/`): entity `Task`, abstract `TaskRepository` (DI token,
   chưa có implementation thật — Stage 2 mới cài Postgres), `createTask` (chống trùng title
   trong phạm vi cùng 1 owner, throw `ConflictException`), `deleteTask` (throw `NotFoundException`
@@ -485,6 +537,7 @@
 - Next milestone: Next.js — setup Vitest + React Testing Library.
 
 ### 2026-10-15 (scaffold)
+
 - Cài pnpm global (npm i -g pnpm, v12.11.2) vì máy chưa có sẵn.
 - Scaffold `apps/api` bằng `@nestjs/cli` (NestJS 12). **Lưu ý quan trọng:** bản CLI hiện tại
   mặc định dùng **Vitest**, không phải Jest — đã cập nhật `CLAUDE.md` phản ánh đúng thực tế
@@ -498,6 +551,7 @@
 - Next milestone: viết `TaskService` (NestJS) với rule nghiệp vụ thật + unit test.
 
 ### 2026-10-15 (tiếp)
+
 - **Stage 0 hoàn thành toàn bộ** (6/6 khái niệm) qua Q&A: Testing Pyramid, Test Double
   (phân biệt rõ stub vs mock), AAA pattern (hiểu đúng lý do bọc Act trong arrow function —
   để expect tự kiểm soát việc gọi hàm và bắt exception, không liên quan timing/async), coverage
@@ -509,6 +563,7 @@
   `apps/web` (Next.js client-side) bằng pnpm.
 
 ### 2026-10-15
+
 - Inspect project thật `internship` (client Next.js + server NestJS/DynamoDB): xác nhận chưa
   có testing/CI nào, đánh giá là ứng viên tốt để áp dụng learning path sau khi vững ở
   Mini Task Manager (lưu ý: DB là DynamoDB, không phải Postgres — Stage 2 integration test
@@ -519,6 +574,7 @@
   assert cách hàm được gọi).
 
 ### 2026-10-14
+
 - Chốt learning path đầy đủ (6 stages) cùng user qua trao đổi với Claude.
 - Quyết định kỹ thuật đã chốt: `apps/api` + `apps/web` (không Turborepo/Nx), pnpm, PostgreSQL
   qua Testcontainers ở Stage 2 backend, Next.js chỉ client-side (không route handler/server
