@@ -57,6 +57,8 @@
 
 ## Stage 6 — Nâng cao (tuỳ chọn)
 
+- [ ] CD flow thật: CI pass trên `main` → tự trigger deploy (Render + Vercel) → tự chạy
+      Playwright smoke test production (code xong, chờ verify end-to-end qua push thật)
 - [ ] Test data factories (`@faker-js/faker`)
 - [ ] Contract testing (Pact)
 - [ ] Mutation testing (Stryker)
@@ -64,6 +66,28 @@
 - [ ] Load test (k6)
 
 ---
+
+### 2026-10-16 (CD flow thật — Stage 6, chưa verify)
+
+- **Vấn đề nhận ra:** Vercel/Render trước đó tự deploy qua auto-deploy tích hợp sẵn của platform
+  ngay khi push lên `main`, **độc lập hoàn toàn với `ci.yml`** — không phải CD đúng nghĩa (deploy
+  sau khi qua kiểm thử), chỉ là 2 pipeline chạy song song không phụ thuộc nhau.
+- Setup thủ công (user làm trên dashboard, ngoài repo):
+  - Render: tắt Auto-Deploy, lấy Deploy Hook URL, regenerate lại key sau khi key cũ bị dán ra
+    ngoài dashboard (vào chat) để tránh lộ secret cũ.
+  - Vercel: Build and Deployment → Ignored Build Step → "Don't build anything" (chặn auto-deploy
+    khi push qua git; Deploy Hook vẫn hoạt động bình thường, không bị chặn bởi Ignored Build
+    Step) + tạo Deploy Hook riêng cho branch `main`.
+  - Thêm 2 secret vào GitHub repo: `RENDER_DEPLOY_HOOK_URL`, `VERCEL_DEPLOY_HOOK_URL`.
+- Code: thêm `.github/workflows/cd.yml`, trigger bằng `workflow_run` (chỉ chạy khi `ci.yml`
+  hoàn thành **và** `conclusion == success` **và** `head_branch == main`) — đảm bảo deploy chỉ
+  xảy ra sau khi toàn bộ test (unit + integration + e2e) đã pass. Job: curl 2 deploy hook → sleep
+  180s (đơn giản hoá: không có webhook callback khi Render/Vercel build xong, chấp nhận fixed
+  wait cho learning project, có note rõ trong comment là không nên dùng cách này cho production
+  thật) → cài Playwright → chạy `pnpm --filter e2e test:prod` (smoke test nhắm production).
+- **Chưa tick xong:** chưa verify qua 1 lần push thật lên `main` để xác nhận `cd.yml` chạy đúng
+  thứ tự (chờ CI pass → trigger deploy → smoke test pass). Next: push thử, theo dõi tab Actions,
+  xác nhận cả chuỗi CI → CD → smoke test xanh hết.
 
 ### 2026-10-15 (Fix bug CI thật: thiếu `postinstall` generate Prisma Client — phát hiện khi chạy job integration-test-api trên GitHub)
 
