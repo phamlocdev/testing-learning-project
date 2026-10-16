@@ -5,6 +5,9 @@ const repoRoot = path.resolve(__dirname, '../..');
 
 export default defineConfig({
   testDir: './tests',
+  // Production smoke test lives here but runs through playwright.prod.config.ts
+  // instead (different baseURL, no local webServer) — exclude it from this run.
+  testIgnore: '**/smoke/**',
   fullyParallel: true,
   // All tests share one `next dev` + one `nest start --watch` instance (see webServer
   // below). `next dev` recompiles routes on demand and gets flaky under concurrent
