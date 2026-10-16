@@ -17,17 +17,86 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Trigger Render deploy
-        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        id: render_trigger
+        run: |
+          response=$(curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          deploy_id=$(echo "$response" | jq -r '.deploy.id')
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "Could not read deploy id from Render hook response: $response"
+            exit 1
+          fi
+          echo "deploy_id=$deploy_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Render deploy to finish
+        run: |
+          deploy_id="${{ steps.render_trigger.outputs.deploy_id }}"
+          for i in $(seq 1 60); do
+            status=$(curl -fsS \
+              -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/$deploy_id" \
+              | jq -r '.status')
+            echo "Render deploy status: $status"
+            if [ "$status" = "live" ]; then
+              exit 0
+            fi
+            case "$status" in
+              build_failed|update_failed|canceled|deactivated)
+                echo "Render deploy failed with status: $status"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for Render deploy"
+          exit 1
+
+      - name: Record pre-trigger timestamp
+        id: ts
+        run: echo "before_ms=$(( $(date -u +%s) * 1000 ))" >> "$GITHUB_OUTPUT"
 
       - name: Trigger Vercel deploy
         run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
 
-      # Both Deploy Hooks only *start* a deploy; neither gives us a webhook to await
-      # completion here. Render free tier build + Vercel build together comfortably
-      # finish within this window — a flaky sleep is an accepted simplification for a
-      # learning project, not something to productionize as-is.
-      - name: Wait for deploys to finish
-        run: sleep 180
+      - name: Find new Vercel deployment
+        id: vercel_find
+        run: |
+          before_ms=${{ steps.ts.outputs.before_ms }}
+          for i in $(seq 1 30); do
+            latest=$(curl -fsS \
+              -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+              "https://api.vercel.com/v6/deployments?projectId=${{ secrets.VERCEL_PROJECT_ID }}&limit=1")
+            created_at=$(echo "$latest" | jq -r '.deployments[0].createdAt // empty')
+            deploy_uid=$(echo "$latest" | jq -r '.deployments[0].uid // empty')
+            if [ -n "$created_at" ] && [ "$created_at" -gt "$before_ms" ]; then
+              echo "deployment_id=$deploy_uid" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Could not find a new Vercel deployment triggered by the hook"
+          exit 1
+
+      - name: Wait for Vercel deploy to finish
+        run: |
+          deployment_id="${{ steps.vercel_find.outputs.deployment_id }}"
+          for i in $(seq 1 60); do
+            state=$(curl -fsS \
+              -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+              "https://api.vercel.com/v13/deployments/$deployment_id" | jq -r '.readyState')
+            echo "Vercel deploy state: $state"
+            if [ "$state" = "READY" ]; then
+              exit 0
+            fi
+            case "$state" in
+              ERROR|CANCELED)
+                echo "Vercel deploy failed with state: $state"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for Vercel deploy"
+          exit 1
 
       - uses: pnpm/action-setup@v4
         with:
