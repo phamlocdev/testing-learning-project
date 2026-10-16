@@ -29,6 +29,10 @@ export default defineConfig({
       url: 'http://localhost:3001',
       reuseExistingServer: true,
       timeout: 60_000,
+      // Scoped to this process only — a job-level PORT env var (as CI sets for the
+      // api) would also reach `next dev` below, since Next.js honors $PORT too, and
+      // the two servers would fight over the same port.
+      env: { PORT: '3001' },
     },
     {
       command: 'pnpm --filter web dev',
