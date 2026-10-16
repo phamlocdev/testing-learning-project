@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { TaskList } from '@/components/TaskList';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { TaskList } from "@/components/TaskList";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
   const { user, token, isInitialized, logout } = useAuth();
@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isInitialized && !token) {
-      router.replace('/login');
+      router.replace("/login");
     }
   }, [isInitialized, token, router]);
 
@@ -25,9 +25,11 @@ export default function Home() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Mini Task Manager
+              Mini Task Manager - Pham Phu Loc
             </h1>
-            <p className="text-sm text-slate-500">Keep track of what needs to get done.</p>
+            <p className="text-sm text-slate-500">
+              Keep track of what needs to get done.
+            </p>
           </div>
           <button
             type="button"
