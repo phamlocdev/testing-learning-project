@@ -4,7 +4,7 @@
 > tiếp tục từ milestone đầu tiên chưa tick (`[ ]`). Sau khi hoàn thành milestone, tick và thêm
 > log entry bên dưới trước khi kết thúc session. Xem `CLAUDE.md` cho context đầy đủ của repo.
 
-**Stage hiện tại:** Stage 4 — Automation & CI
+**Stage hiện tại:** Stage 5 — Deploy + Production Smoke Test (hoàn thành, chờ xác nhận)
 **Cập nhật lần cuối:** 2026-10-16
 
 ---
@@ -50,10 +50,10 @@
 
 ## Stage 5 — Deploy + Production Smoke Test
 
-- [ ] Deploy `apps/web` lên Vercel (free tier)
-- [ ] Deploy `apps/api` lên Render (free tier)
-- [ ] Setup Postgres production trên Neon hoặc Supabase (free tier)
-- [ ] Viết Playwright smoke test nhắm vào URL production
+- [x] Deploy `apps/web` lên Vercel (free tier)
+- [x] Deploy `apps/api` lên Render (free tier)
+- [x] Setup Postgres production trên Neon hoặc Supabase (free tier)
+- [x] Viết Playwright smoke test nhắm vào URL production
 
 ## Stage 6 — Nâng cao (tuỳ chọn)
 
@@ -392,6 +392,89 @@
   query DB thật trong container để verify).
 
 ## Log
+
+### 2026-10-16 (Setup Postgres production trên Neon — Stage 5 bắt đầu)
+
+- User xác nhận Stage 4 đã vững, chuyển sang Stage 5 — Deploy + Production Smoke Test.
+- **Quyết định thứ tự triển khai khác checklist liệt kê:** dù `PROGRESS.md`/`CLAUDE.md` liệt kê
+  Vercel trước, chọn làm theo đúng chuỗi phụ thuộc thật: **DB (Neon) → API (Render) → Web
+  (Vercel) → smoke test**, vì Render cần connection string DB, Vercel cần URL API thật.
+- Chọn **Neon** (so với Supabase) — chỉ cần Postgres thuần, không cần auth/storage/realtime đi
+  kèm.
+- User tạo project Neon qua dashboard, dán connection string vào `apps/api/.env`
+  (`DATABASE_URL`) tạm thời để chạy `pnpm --filter api exec prisma migrate deploy` — áp cả 2
+  migration (`init`, `add_user`) lên Neon thành công.
+- **Lưu ý/rủi ro đã xử lý:** `.env` dùng chung cho cả mục đích "áp schema" lẫn "cấu hình local
+  dev" — nếu để nguyên trỏ vào Neon sau khi migrate xong, chạy `start:dev`/test thủ công sau
+  này dễ vô tình ghi nhầm vào DB production. Đã trả `DATABASE_URL` trong `.env` về lại Postgres
+  dev local (docker-compose) ngay sau khi migrate xong; connection string Neon không lưu vào
+  file nào trong repo (lấy lại được qua Neon dashboard khi cần dán vào Render env var ở
+  milestone kế tiếp).
+- Next milestone: Deploy `apps/api` lên Render (free tier), trỏ `DATABASE_URL` vào Neon vừa tạo.
+
+### 2026-10-16 (Deploy apps/api lên Render — verify qua production URL thật)
+
+- User tự tạo Web Service trên Render (connect repo, root directory `apps/api`, env var
+  `DATABASE_URL` trỏ vào Neon + `JWT_SECRET` riêng cho production) và deploy thành công:
+  https://testing-learning-project.onrender.com/.
+- Verify bằng `curl` thật vào URL production (không chỉ tin "deploy thành công" trên dashboard):
+  - `GET /` → 200, "Hello World!" (route mặc định của `AppController`) — xác nhận app khởi động
+    được, build/start command đúng.
+  - `POST /auth/register` → 201, trả đúng user vừa tạo — xác nhận kết nối Neon thật thành công
+    và ghi được record thật (không chỉ app sống mà DB cũng hoạt động đúng).
+  - `POST /auth/login` → 200, trả JWT hợp lệ — xác nhận toàn bộ flow auth (hash password, query
+    DB, ký JWT) chạy đúng trên production, không riêng gì route tĩnh.
+- Next milestone: Deploy `apps/web` lên Vercel, trỏ `NEXT_PUBLIC_API_URL` vào URL Render này.
+
+### 2026-10-16 (Deploy apps/web lên Vercel — verify qua browser thật, không chỉ curl)
+
+- User tự tạo project trên Vercel (connect repo, root directory `apps/web`, env var
+  `NEXT_PUBLIC_API_URL` trỏ vào URL Render) và deploy thành công:
+  https://testing-learning-project.vercel.app/.
+- **Verify sâu hơn so với milestone Render:** `curl` chỉ xác nhận SSR trả đúng HTML tĩnh (form
+  login render được), không chứng minh được client-side JS đã gọi đúng sang Render API (vì
+  `NEXT_PUBLIC_API_URL` được inline lúc build — sai biến env lúc build thì SSR vẫn trông bình
+  thường nhưng gọi API sẽ fail hoàn toàn ở client). Cần browser thật chạy JS mới bắt được loại
+  lỗi này.
+- Không có sẵn `chromium-cli`, nên viết 1 script Playwright độc lập (dùng tạm
+  `@playwright/test` có sẵn trong `apps/e2e`, chạy **từ trong** thư mục `apps/e2e` để Node
+  resolve được package — chạy ở thư mục khác bị `ERR_MODULE_NOT_FOUND`) nhắm thẳng vào URL
+  Vercel thật: register → login → list tasks → tạo task, có log lại toàn bộ network request gọi
+  sang Render + console error. Script chỉ dùng tạm để verify thủ công, xoá ngay sau khi chạy
+  xong (không phải Playwright test chính thức của repo — đó là milestone kế tiếp).
+- Verify: PASS — 4 request (`register`/`login`/`GET tasks`/`POST tasks`) đều gọi đúng sang
+  `testing-learning-project.onrender.com`, không request nào fail, không console error (tức
+  không có CORS issue hay sai biến env).
+- **Stage 5 — 3/4 milestone hoàn thành** (Neon + Render + Vercel). Next milestone cuối: viết
+  Playwright smoke test chính thức trong `apps/e2e`, nhắm thẳng vào URL production (khác hẳn
+  `playwright.config.ts` hiện tại đang tự khởi động dev server local).
+
+### 2026-10-16 (Playwright smoke test nhắm vào production — hoàn thành Stage 5)
+
+- **Quyết định tách config thay vì tái dùng `playwright.config.ts` hiện có:** config cũ tự khởi
+  động `webServer` (dev server local) và `baseURL: localhost:3000` — không phù hợp để nhắm vào
+  app đã deploy thật. Tạo `apps/e2e/playwright.prod.config.ts` riêng: không có `webServer`,
+  `baseURL` trỏ thẳng `https://testing-learning-project.vercel.app`, không đụng tới suite E2E
+  local hiện có.
+- `playwright.config.ts` (local) thêm `testIgnore: '**/smoke/**'` để tách rạch ròi 2 suite —
+  tránh việc chạy `pnpm --filter e2e test` bình thường lại vô tình gọi vào production.
+  `playwright.prod.config.ts` trỏ `testDir: './tests/smoke'`.
+- Viết `apps/e2e/tests/smoke/production.spec.ts`: y hệt kịch bản E2E đầy đủ của Stage 3 (seed
+  user qua API thật → login UI thật → tạo task → đánh dấu done → logout → về lại `/login`),
+  nhưng toàn bộ trỏ vào URL production thật (Vercel + Render) thay vì localhost.
+- **Cân nhắc đặc thù free tier (áp dụng vào config, chưa gặp thật khi verify):** Render free tier
+  tự "ngủ" sau một thời gian không có traffic, request đầu tiên sau khi ngủ có thể mất 30-50s để
+  cold-start. Set `retries: 1` + `timeout`/`actionTimeout`/`navigationTimeout` dài hơn hẳn
+  (60-90s) trong `playwright.prod.config.ts` so với config local — 1 lần retry đủ để hấp thụ
+  cold-start mà không che giấu lỗi thật (deploy hỏng thật vẫn fail cả 2 lần).
+- Thêm script `test:prod` vào `apps/e2e/package.json`.
+- Verify: `pnpm --filter e2e test:prod` → 1/1 pass (10.1s, không gặp cold-start lần này vì
+  Render vừa được gọi nhiều lần ở milestone trước). `npx playwright test --list` (config local,
+  không truyền `--config`) → chỉ liệt kê đúng 4 test cũ, xác nhận `testIgnore` hoạt động đúng,
+  không lẫn smoke test vào suite local.
+- **Stage 5 — Deploy + Production Smoke Test hoàn thành toàn bộ 4/4 milestone** (Neon, Render,
+  Vercel, Playwright smoke test). Chờ user xác nhận trước khi chuyển sang Stage 6 — Nâng cao
+  (tuỳ chọn).
 
 ### 2026-10-16 (Coverage report + badge trong README — hoàn thành Stage 4)
 
