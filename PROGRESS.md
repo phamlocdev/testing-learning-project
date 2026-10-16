@@ -46,7 +46,7 @@
 - [x] Viết GitHub Actions workflow chạy unit test (api + web)
 - [x] Thêm job integration test (Testcontainers/Docker-in-Docker trên GitHub runner)
 - [x] Thêm job E2E Playwright trên CI
-- [ ] Setup coverage report + badge trong README
+- [x] Setup coverage report + badge trong README
 
 ## Stage 5 — Deploy + Production Smoke Test
 
@@ -392,6 +392,26 @@
   query DB thật trong container để verify).
 
 ## Log
+
+### 2026-10-16 (Coverage report + badge trong README — hoàn thành Stage 4)
+
+- Đổi lệnh test trong 2 job `unit-test-api`/`test-web` của `.github/workflows/ci.yml` từ
+  `test`/`test` sang `test:cov`/`test:cov` (script đã có sẵn từ Stage 1, dùng
+  `@vitest/coverage-v8`, không cần cài thêm gì) — CI tự in bảng % Statements/Branches/
+  Functions/Lines ngay trong log mỗi lần chạy, không cần dịch vụ coverage ngoài
+  (Codecov/Coveralls) ở quy mô học tập này.
+- **Chủ đích không đặt coverage threshold** (vd `--coverage.thresholds.lines=80`) — khớp đúng
+  tinh thần Stage 0 đã học: coverage là tín hiệu tham khảo, không phải mục tiêu ép buộc, ép
+  threshold cứng dễ sinh ra test giả (test cho đủ số, không test đúng hành vi).
+- Tạo `README.md` ở root (trước đó repo chưa có — chỉ có `apps/api/README.md` mặc định của
+  NestJS CLI): badge "CI" trỏ vào `actions/workflows/ci.yml/badge.svg` của
+  `phamlocdev/testing-learning-project` (lấy từ `git remote -v`), tổng quan cấu trúc repo, lệnh
+  test/coverage cho từng app.
+- Verify: `pnpm --filter api test:cov` (17/17 pass, in coverage summary), `pnpm --filter web
+test:cov` (20/20 pass, in coverage summary) — cả 2 chạy được ngay, không cần sửa
+  `vitest.config.ts`/`vitest.config.mts`.
+- **Stage 4 — Automation & CI hoàn thành toàn bộ 4/4 milestone.** Chờ user xác nhận trước khi
+  chuyển sang Stage 5 — Deploy + Production Smoke Test.
 
 ### 2026-10-16 (Thêm job E2E Playwright vào CI)
 
